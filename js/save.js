@@ -78,6 +78,7 @@ const Save = (() => {
     }
     if (!d.seen || typeof d.seen !== 'object') d.seen = {};
     if (!d.recipes || typeof d.recipes !== 'object') d.recipes = {}; // 知っているレシピ
+    if (!d.wild || typeof d.wild !== 'object') d.wild = {};       // 荒野モード { key: クリア回数 }
     for (const id in RECIPES) if (RECIPES[id].known) d.recipes[id] = true;
     for (const id in d.cards) if (!CARDS[id]) delete d.cards[id];
     if (!Array.isArray(d.deck)) d.deck = [];

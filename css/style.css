@@ -449,3 +449,6 @@ button { font-family: inherit; touch-action: manipulation; }
 .chapter small { color: #e6d9b0; font-size: 12px; }
 .chapter.locked { opacity: .5; }
 .goalbox { background: #2a2210; border: 1px solid #6a5313; border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; color: #ffe9a8; }
+.btn.orange { background: #e0782a; }
+.rare { color: #ffd34d; font-weight: 900; }
+.right { text-align: right; }

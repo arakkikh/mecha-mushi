@@ -18,7 +18,8 @@
     for (const id in CARDS) if (CARDS[id].only === 'synth') ok(rids.some(r => RECIPES[r].out === id), '合成限定カードにレシピがある ' + id);
     ok(rids.filter(r => RECIPES[r].known).length >= 3, '最初から知っているレシピ');
     // 合成限定の★4まで、最初のカードから辿り着けるか（材料の材料…をたどる）
-    const reach = new Set(Object.keys(CARDS).filter(id => !CARDS[id].only));
+    const wildGet = new Set(WILDS.flatMap(w => (w.reward.drops || []).map(d => d.card).concat(w.chests.map(c => c.get.card))).filter(Boolean));
+    const reach = new Set(Object.keys(CARDS).filter(id => !CARDS[id].only || (CARDS[id].only === 'wild' && wildGet.has(id))));
     let grew = true;
     while (grew) { grew = false; for (const r of rids) if (!reach.has(RECIPES[r].out) && Object.keys(RECIPES[r].in).every(k => reach.has(k))) { reach.add(RECIPES[r].out); grew = true; } }
     ok(Object.keys(CARDS).every(id => reach.has(id)), '全カードが入手可能');

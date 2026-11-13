@@ -54,6 +54,7 @@ const App = (() => {
     $('titleArt').innerHTML = d.roster.slice(0, 5).map(u => Art.icon(u.cls, 'player')).join('');
     $('titleMenu').innerHTML = `
       <button class="btn" data-act="story">📖 ストーリー <small>(${Math.min(d.cleared, STAGES.length)}/${STAGES.length})</small></button>
+      <button class="btn orange" data-act="wild">🏜 荒野モード <small>${WILDS.filter(w => d.wild[w.key]).length}/${WILDS.length}</small></button>
       <button class="btn red" data-act="free">⚔️ フリーバトル</button>
       <button class="btn green" data-act="units">🔧 ユニット・装備</button>
       <button class="btn purple" data-act="cards">🃏 カード <small>デッキ${d.deck.length}/${DECK_SIZE}</small></button>
@@ -66,6 +67,7 @@ const App = (() => {
       const a = btn.dataset.act;
       if (a === 'story') storyList();
       else if (a === 'free') freeBattle();
+      else if (a === 'wild') wildList();
       else if (a === 'units') unitsPage();
       else if (a === 'cards') cardsPage('deck');
       else if (a === 'settings') settings(title);
@@ -89,6 +91,8 @@ const App = (() => {
       <p><b>地形</b>：森＝回避+20、岩場＝防御+3、水＝飛行ユニットのみ通れる。飛行ユニットは地形の効果を受けません。</p>
       <p>敵をタップすると、その敵が動ける範囲（オレンジ）を確認できます。</p>
       <p><b>カード</b>：行動メニューの「🃏カード」で、デッキ（20枚）のカードを1枚使えます（使うとそのユニットは行動終了）。各カードは1戦に1回だけ。戦闘が終わると全部戻ります。攻撃カードは必ず命中・反撃なし。輪が重なった瞬間にタップするミニゲームで威力が0.6〜1.5倍に変わります（設定でオフにすると常に1.0倍）。</p>
+      <p><b>勝利条件</b>：敵全滅・ボス撃破・🚩拠点到達・Nターン防衛（🏠に敵が入ると負け）。画面上の🎯に表示されます。大きいマップは指でスクロール、2本指のピンチや＋－ボタンで拡大縮小。</p>
+      <p><b>荒野モード</b>：ストーリーとは別の寄り道マップ40個。いつでも何度でも挑戦でき、勝つたびにお金とカードのドロップ（✨荒野でしか出ないレアカードも）。後半はストーリーより強い敵が出ます。</p>
       <p><b>宝箱</b>：🎁のマスで行動を終えると開きます。中身はお金・武器・パーツなど。<b>敵が先に止まると取られてしまう</b>ので急ごう！ 取った宝箱は記録され、ステージ選択に「宝箱 2/3」のように表示されます。</p>
       </div><div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`);
   }
@@ -190,7 +194,7 @@ const App = (() => {
     const before = new Map(party.map(u => [u.id, u.lv]));
     show('scr-battle');
     const got = [];
-    const extra = cfg.mode === 'story' ? {
+    const extra = cfg.mode === 'story' || cfg.mode === 'wild' ? {
       chestsTaken: Save.chestsTaken(cfg.stage),
       onChest: ev => { Save.takeChest(cfg.stage, ev.idx, ev.get); got.push(ev.get); },
     } : { noChests: true };
@@ -218,6 +222,17 @@ const App = (() => {
           cards = (cfg.stage.reward.cards || []).slice();
           d.cleared = cfg.index + 1;
           recruits = Save.syncRecruits();
+        }
+      } else if (cfg.mode === 'wild') {
+        const k = cfg.stage.key;
+        const first = !d.wild[k];
+        d.wild[k] = (d.wild[k] || 0) + 1;
+        money = cfg.stage.reward.money * (first ? 2 : 1);
+        if (first) lines.push('<div class="reward new"><span>はじめてクリア</span><b>お金2倍！</b></div>');
+        for (const dr of cfg.stage.reward.drops || []) {
+          if (Math.random() >= dr.rate) continue;
+          if (dr.card) { cards.push(dr.card); if (CARDS[dr.card].only === 'wild') lines.push(`<div class="reward new"><span>✨ レアドロップ！</span><b>${CARDS[dr.card].name}</b></div>`); }
+          if (dr.item) items.push(dr.item);
         }
       } else {
         money = cfg.reward.money;
@@ -252,14 +267,52 @@ const App = (() => {
       ${cfg.mode === 'story' && win && cfg.index + 1 < STAGES.length && CHAPTERS.some(c => c.to === cfg.index + 1) ? `<p class="center c-gold"><b>${CHAPTERS.find(c => c.to === cfg.index + 1).name} クリア！</b></p>` : ''}
       <div class="btnrow">
         ${hasNext ? '<button class="btn" data-act="next">次のステージへ</button>' : ''}
+        ${cfg.mode === 'wild' && win && cfg.index + 1 < WILDS.length ? '<button class="btn" data-act="wnext">次のマップへ</button>' : ''}
         <button class="btn ${hasNext ? 'gray' : ''}" data-act="retry">${win ? 'もう一度' : '再挑戦'}</button>
-        <button class="btn gray" data-act="menu">${cfg.mode === 'story' ? 'ステージ選択' : 'フリーバトル'}</button>
+        <button class="btn gray" data-act="menu">${cfg.mode === 'story' ? 'ステージ選択' : cfg.mode === 'wild' ? '荒野マップ' : 'フリーバトル'}</button>
       </div>`,
     act => {
       if (act === 'next') stageIntro(cfg.index + 1);
+      else if (act === 'wnext') wildIntro(cfg.index + 1);
       else if (act === 'retry') prep(cfg.mode === 'free' ? makeFreeCfg() : cfg);
-      else cfg.mode === 'story' ? storyList() : freeBattle();
+      else cfg.mode === 'story' ? storyList() : cfg.mode === 'wild' ? wildList() : freeBattle();
     });
+  }
+
+  // ---------- 荒野モード ----------
+  const AREA_NAMES = ['草原エリア', '砂漠エリア', '湿地エリア', '工場エリア', '天空エリア'];
+  function wildList() {
+    const d = D();
+    const myLv = avgLv();
+    const html = `<div class="card muted">ストーリーとは別の、寄り道用のマップです。いつでも何度でも挑戦でき、経験値・お金・カード稼ぎに使えます。
+      後半のマップはストーリーより強い敵が出ます。<br>あなたの平均Lv <b>${myLv}</b></div>` +
+      WILDS.map((w, i) => {
+        const head = i % 8 === 0 ? `<div class="chapter"><b>${AREA_NAMES[i / 8] || 'エリア'}</b><small>推奨Lv ${w.lv}〜${WILDS[Math.min(WILDS.length - 1, i + 7)].lv}</small></div>` : '';
+        const n = d.wild[w.key] || 0;
+        const cc = Save.chestCount(w);
+        const rare = (w.reward.drops || []).some(dr => dr.card && CARDS[dr.card].only === 'wild');
+        const hard = w.lv > myLv + 4;
+        return head + `<button class="stage ${n ? 'cleared' : ''}" data-act="wmap" data-arg="${i}">
+          <div class="stage-no">${n ? '★' : '　'}<br><small>荒野${i + 1}</small></div>
+          <div class="grow"><div class="stage-name">${w.name}</div>
+          <div class="muted">推奨Lv<b class="${hard ? 'down' : ''}">${w.lv}</b> / 🎯${Engine.goalText(w.goal || { type: 'rout' }, true)} / 敵${w.enemies.length}体${n ? ` / ${n}回クリア` : ''}</div>
+          <div class="chestinfo ${cc.got === cc.total ? 'done' : ''}">🎁 宝箱 ${cc.got}/${cc.total}${rare ? ' <span class="rare">✨レアカードあり</span>' : ''}</div></div>
+          ${miniMap(w)}</button>`;
+      }).join('');
+    page('荒野モード', html, title, (a, arg) => { if (a === 'wmap') wildIntro(Number(arg)); }, true);
+  }
+  function wildIntro(i) {
+    const w = WILDS[i];
+    const d = D();
+    const drops = (w.reward.drops || []).map(dr => dr.card ? `${CARDS[dr.card].only === 'wild' ? '✨' : '🃏'}${d.seen[dr.card] || CARDS[dr.card].only !== 'wild' ? CARDS[dr.card].name : '？？？'} <small>${Math.round(dr.rate * 100)}%</small>` : '').join('<br>');
+    modal(`<h3>荒野${i + 1}<br>${w.name}</h3>
+      <div class="goalbox">🎯 勝利条件：<b>${Engine.goalText(w.goal || { type: 'rout' })}</b><br><small>推奨Lv ${w.lv} / 出撃 ${w.start.length}体 / マップ ${w.rows[0].length}×${w.rows.length}</small></div>
+      <div class="muted">敵の編成</div>${enemyIcons(w.enemies)}
+      ${chestLine(w)}
+      <div class="reward"><span>お金</span><b>💰${w.reward.money}${d.wild[w.key] ? '' : '（初回は2倍）'}</b></div>
+      <div class="reward"><span>ドロップ</span><b class="right">${drops}</b></div>
+      <div class="btnrow"><button class="btn" data-act="go">出撃準備へ</button><button class="btn gray" data-act="no">やめる</button></div>`,
+    act => { if (act === 'go') prep({ stage: w, enemies: w.enemies, mode: 'wild', index: i, back: wildList }); });
   }
 
   // ---------- フリーバトル ----------
@@ -635,7 +688,7 @@ const App = (() => {
     title();
   }
 
-  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, cardsPage, settings, doSynth, get pot() { return pot; }, set pot(v) { pot = v; }, get sortie() { return sortie; } };
+  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, cardsPage, settings, doSynth, wildList, wildIntro, onBattleEnd, get pot() { return pot; }, set pot(v) { pot = v; }, get sortie() { return sortie; } };
 })();
 
 window.addEventListener('DOMContentLoaded', App.init);
