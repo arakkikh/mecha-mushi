@@ -114,7 +114,9 @@ const RECRUITS = [
 ];
 
 // ステージ（マップ 8×10）。G=草地 F=森 R=岩場 W=水
-// start=味方の出撃位置, enemies=敵配置（ai: aggressive=突撃 / hold=待ち伏せ / boss=動かない）
+// start=味方の出撃位置, enemies=敵配置（ai: aggressive=突撃 / hold=待ち伏せ / boss=動かない / thief=宝箱どろぼう）
+// chests=宝箱（get: { money: 数 } / { item: 武器・パーツID }）。取得記録は配列の順番で保存するので、追加は末尾へ
+
 const STAGES = [
   {
     id: 1, name: 'はじまりの草原',
@@ -125,6 +127,7 @@ const STAGES = [
       { cls: 'ari', lv: 1, x: 2, y: 1 }, { cls: 'ari', lv: 1, x: 5, y: 1 }, { cls: 'kuwagata', lv: 1, x: 4, y: 0 },
     ],
     reward: { money: 300, items: ['energy_cell'] },
+    chests: [{ x: 7, y: 7, get: { money: 150 } }, { x: 0, y: 0, get: { item: 'armor_plate' } }],
   },
   {
     id: 2, name: '森のこみち',
@@ -132,9 +135,10 @@ const STAGES = [
     rows: ['FFGGGFFG', 'FGGFGGFF', 'GGFFGGGF', 'GFGGGFGG', 'FFGRGGFF', 'GGGFFGGG', 'FGGGGFGF', 'GGFGGGGG', 'FGGGFGGF', 'GGGGGGFF'],
     start: [[2, 9], [4, 9], [3, 8], [5, 9], [1, 9]],
     enemies: [
-      { cls: 'ari', lv: 2, x: 1, y: 1 }, { cls: 'ari', lv: 2, x: 6, y: 2 }, { cls: 'ga', lv: 2, x: 3, y: 0 }, { cls: 'kabuto', lv: 2, x: 5, y: 0 },
+      { cls: 'ari', lv: 2, x: 1, y: 1 }, { cls: 'ari', lv: 2, x: 6, y: 2, ai: 'thief' }, { cls: 'ga', lv: 2, x: 3, y: 0 }, { cls: 'kabuto', lv: 2, x: 5, y: 0 },
     ],
     reward: { money: 400, items: ['power_motor'] },
+    chests: [{ x: 0, y: 4, get: { money: 200 } }, { x: 7, y: 1, get: { item: 'energy_cell' } }, { x: 6, y: 0, get: { item: 'lockon' } }],
   },
   {
     id: 3, name: '川辺の戦い',
@@ -142,10 +146,11 @@ const STAGES = [
     rows: ['GGFGGGRG', 'GRGGFGGG', 'GGGGGGFG', 'WWWGWWWW', 'WWWGWWWW', 'GGFGGGGG', 'GGGGRGFG', 'FGGGGGGG', 'GGRGGFGG', 'GGGGGGGG'],
     start: [[2, 9], [4, 9], [3, 8], [5, 8], [1, 9]],
     enemies: [
-      { cls: 'ga', lv: 4, x: 1, y: 0 }, { cls: 'ga', lv: 4, x: 6, y: 0 }, { cls: 'ari', lv: 4, x: 2, y: 1 },
+      { cls: 'ga', lv: 4, x: 1, y: 0 }, { cls: 'ga', lv: 4, x: 6, y: 0, ai: 'thief' }, { cls: 'ari', lv: 4, x: 2, y: 1 },
       { cls: 'ari', lv: 4, x: 5, y: 1 }, { cls: 'kuwagata', lv: 4, x: 3, y: 2, ai: 'hold' },
     ],
     reward: { money: 500, items: ['armor_plate'] },
+    chests: [{ x: 7, y: 4, get: { money: 300 } }, { x: 6, y: 2, get: { item: 'power_motor' } }],
   },
   {
     id: 4, name: '岩山の砦',
@@ -157,6 +162,7 @@ const STAGES = [
       { cls: 'ari', lv: 5, x: 2, y: 0 }, { cls: 'tentou', lv: 5, x: 4, y: 0 },
     ],
     reward: { money: 600, items: ['lockon'] },
+    chests: [{ x: 0, y: 0, get: { item: 'power_motor' } }, { x: 7, y: 0, get: { money: 300 } }, { x: 7, y: 7, get: { money: 150 } }],
   },
   {
     id: 5, name: 'ぬかるみの湿地',
@@ -168,6 +174,7 @@ const STAGES = [
       { cls: 'ga', lv: 7, x: 1, y: 0 }, { cls: 'ga', lv: 7, x: 6, y: 0 }, { cls: 'ari', lv: 7, x: 2, y: 2 }, { cls: 'ari', lv: 7, x: 5, y: 2 },
     ],
     reward: { money: 800, items: ['drill_horn'] },
+    chests: [{ x: 0, y: 0, get: { item: 'boomerang' } }, { x: 1, y: 1, get: { money: 400 } }, { x: 6, y: 7, get: { item: 'energy_cell' } }],
   },
   {
     id: 6, name: '夜の森',
@@ -175,10 +182,11 @@ const STAGES = [
     rows: ['FFFGGFFF', 'FGFFGFGF', 'GGGFFGGG', 'FFGGGGFF', 'GFGFFGFG', 'GGGGGGGG', 'FGFGGFGF', 'FFGGGGFF', 'GGGFFGGG', 'GGGGGGGG'],
     start: [[2, 9], [4, 9], [3, 9], [5, 9], [1, 9]],
     enemies: [
-      { cls: 'hachi', lv: 9, x: 1, y: 1 }, { cls: 'hachi', lv: 9, x: 6, y: 1 }, { cls: 'ga', lv: 9, x: 3, y: 0 },
+      { cls: 'hachi', lv: 9, x: 1, y: 1 }, { cls: 'hachi', lv: 9, x: 6, y: 1, ai: 'thief' }, { cls: 'ga', lv: 9, x: 3, y: 0 },
       { cls: 'ga', lv: 9, x: 4, y: 0 }, { cls: 'tentou', lv: 9, x: 4, y: 1 }, { cls: 'kuwagata', lv: 9, x: 2, y: 2 },
     ],
     reward: { money: 900, items: ['stealth'] },
+    chests: [{ x: 0, y: 0, get: { item: 'repair_nano' } }, { x: 7, y: 0, get: { money: 400 } }, { x: 0, y: 7, get: { item: 'armor_plate' } }],
   },
   {
     id: 7, name: '大河の渡し',
@@ -186,10 +194,11 @@ const STAGES = [
     rows: ['GGFGGFGG', 'GRGGGGRG', 'GGGGFGGG', 'WGWWWWGW', 'WGWWWWGW', 'WGWWWWGW', 'GGGGGGGG', 'GFGRGGFG', 'GGGGGGGG', 'GGFGGGGG'],
     start: [[2, 9], [4, 9], [3, 8], [5, 9], [1, 9]],
     enemies: [
-      { cls: 'chou', lv: 11, x: 2, y: 2 }, { cls: 'chou', lv: 11, x: 5, y: 2 }, { cls: 'ga', lv: 11, x: 3, y: 1 },
+      { cls: 'chou', lv: 11, x: 2, y: 2 }, { cls: 'chou', lv: 11, x: 5, y: 2 }, { cls: 'ga', lv: 11, x: 3, y: 1, ai: 'thief' },
       { cls: 'ga', lv: 11, x: 4, y: 1 }, { cls: 'kabuto', lv: 11, x: 1, y: 2, ai: 'hold' }, { cls: 'kabuto', lv: 11, x: 6, y: 2, ai: 'hold' },
     ],
     reward: { money: 1000, items: ['snipe_powder'] },
+    chests: [{ x: 3, y: 4, get: { item: 'blast_spore' } }, { x: 0, y: 0, get: { money: 500 } }, { x: 7, y: 0, get: { item: 'heavy_armor' } }],
   },
   {
     id: 8, name: '鉄の谷',
@@ -201,6 +210,7 @@ const STAGES = [
       { cls: 'kuwagata', lv: 10, x: 4, y: 2 }, { cls: 'tentou', lv: 10, x: 3, y: 0 }, { cls: 'kamakiri', lv: 11, x: 4, y: 0, ai: 'hold', boss: true, name: 'カマキリ副長' },
     ],
     reward: { money: 1200, items: ['turbo_leg'] },
+    chests: [{ x: 0, y: 0, get: { item: 'overdrive' } }, { x: 7, y: 9, get: { money: 300 } }, { x: 7, y: 0, get: { item: 'big_battery' } }],
   },
   {
     id: 9, name: '嵐の高原',
@@ -208,10 +218,11 @@ const STAGES = [
     rows: ['GGRGGRGG', 'GFGGGGFG', 'GGGWGGGG', 'RGGWGRGG', 'GGGGGGGG', 'GGRGGGGR', 'GFGGWGFG', 'GGGGWGGG', 'GRGGGGRG', 'GGGGGGGG'],
     start: [[2, 9], [4, 9], [3, 9], [5, 9], [1, 9]],
     enemies: [
-      { cls: 'kuwagata', lv: 14, x: 1, y: 0 }, { cls: 'hachi', lv: 14, x: 3, y: 0 }, { cls: 'ga', lv: 14, x: 4, y: 0 }, { cls: 'chou', lv: 14, x: 6, y: 0 },
+      { cls: 'kuwagata', lv: 14, x: 1, y: 0 }, { cls: 'hachi', lv: 14, x: 3, y: 0, ai: 'thief' }, { cls: 'ga', lv: 14, x: 4, y: 0 }, { cls: 'chou', lv: 14, x: 6, y: 0 },
       { cls: 'kabuto', lv: 14, x: 0, y: 1 }, { cls: 'tentou', lv: 14, x: 4, y: 1 }, { cls: 'ari', lv: 15, x: 7, y: 1 },
     ],
     reward: { money: 1400, items: ['medi_mist'] },
+    chests: [{ x: 3, y: 2, get: { money: 600 } }, { x: 7, y: 5, get: { item: 'stun_needle' } }, { x: 2, y: 0, get: { item: 'giga_scissor' } }],
   },
   {
     id: 10, name: 'ガラクタ要塞',
@@ -224,5 +235,6 @@ const STAGES = [
       { cls: 'ga', lv: 16, x: 6, y: 2 }, { cls: 'kuwagata', lv: 16, x: 3, y: 3 }, { cls: 'hachi', lv: 16, x: 5, y: 3 },
     ],
     reward: { money: 2000, items: ['thunder_horn'] },
+    chests: [{ x: 0, y: 4, get: { item: 'meteor_scale' } }, { x: 7, y: 0, get: { money: 1000 } }, { x: 0, y: 0, get: { item: 'turbo_leg' } }],
   },
 ];

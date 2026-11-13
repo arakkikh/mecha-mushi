@@ -69,11 +69,18 @@ const Engine = (() => {
     }, st, { hp: st.maxhp });
   }
 
-  function createBattle(stage, playerSpecs, enemySpecs) {
+  // extra: { chestsTaken: [取得済みの宝箱番号], noChests: true で宝箱なし }
+  function createBattle(stage, playerSpecs, enemySpecs, extra) {
+    extra = extra || {};
+    const taken = extra.chestsTaken || [];
     const b = {
       w: stage.rows[0].length, h: stage.rows.length,
       tiles: stage.rows.map(r => r.split('')),
       units: [], turn: 1, phase: 'player', nextUid: 1,
+      // 宝箱：state = closed（未開封）/ opened（味方が取得）/ stolen（敵が取得）/ done（以前に取得済み）
+      chests: extra.noChests ? [] : (stage.chests || []).map((c, i) => ({
+        i, x: c.x, y: c.y, get: c.get, state: taken.includes(i) ? 'done' : 'closed',
+      })),
     };
     playerSpecs.forEach((sp, i) => {
       const [x, y] = stage.start[i];
@@ -90,6 +97,16 @@ const Engine = (() => {
   const byUid = (b, uid) => b.units.find(u => u.uid === uid);
   const terrain = (b, x, y) => TERRAIN[b.tiles[y][x]];
   const inside = (b, x, y) => x >= 0 && y >= 0 && x < b.w && y < b.h;
+  const chestAt = (b, x, y) => (b.chests || []).find(c => c.state === 'closed' && c.x === x && c.y === y) || null;
+
+  // ユニットが止まったマスの宝箱を開ける。開けたらイベントを返す
+  function openChest(b, u) {
+    if (u.hp <= 0) return null;
+    const c = chestAt(b, u.x, u.y);
+    if (!c) return null;
+    c.state = u.side === 'player' ? 'opened' : 'stolen';
+    return { kind: 'chest', uid: u.uid, side: u.side, idx: c.i, get: c.get };
+  }
 
   // 移動範囲（ダイクストラ）。味方はすり抜け可・敵は通れない。
   function reachable(b, u, limit) {
@@ -284,15 +301,19 @@ const Engine = (() => {
     const consider = (score, v, action) => {
       if (!best || score > best.score) best = { score, to: { x: v.x, y: v.y }, action };
     };
+    // 宝箱への関心：味方CPUは積極的に、敵は「ついでに」取る（どろぼう型は最優先）
+    const greed = u.ai === 'boss' || u.ai === 'hold' ? 0 : u.side === 'player' ? 30 : u.ai === 'thief' ? 40 : 7;
     for (const v of res.stops.values()) {
       const tb = u.move === 'fly' ? { def: 0 } : TERRAIN[b.tiles[v.y][v.x]];
+      const cb = greed && chestAt(b, v.x, v.y) ? greed : 0;
+      if (cb) consider(cb - v.cost * 0.05, v, null);
       for (const t of targetsFrom(b, u, v.x, v.y)) {
         const f = forecast(b, u, t, v.x, v.y);
         let s = f.hit / 100 * f.dmg * 2;
         if (f.dmg >= t.hp) s += 40 * f.hit / 100;   // 倒せるなら優先
         if (f.counter) s -= f.counter.hit / 100 * f.counter.dmg * 0.8;
         if (t.heal) s += 4;                          // 回復役を狙う
-        s += tb.def * 1.5 - v.cost * 0.05;
+        s += tb.def * 1.5 - v.cost * 0.05 + cb;
         consider(s, v, { type: 'attack', target: t });
       }
       for (const t of healTargetsFrom(b, u, v.x, v.y)) {
@@ -306,10 +327,17 @@ const Engine = (() => {
     // 攻撃できない場合：待ち伏せ型・ボスはその場で待機
     if (u.ai === 'hold' || u.ai === 'boss') return { to: { x: u.x, y: u.y }, path: [], action: null };
 
-    // 一番近い味方ユニットへ向かう
+    // どろぼう型は一番近い宝箱へ、それ以外は一番近い相手ユニットへ向かう
     const far = reachable(b, u, 999);
     let goal = null;
-    for (const p of alive(b, u.side === 'enemy' ? 'player' : 'enemy')) {
+    if (u.ai === 'thief') {
+      for (const c of b.chests) {
+        if (c.state !== 'closed') continue;
+        const v = far.stops.get(key(c.x, c.y));
+        if (v && (!goal || v.cost < goal.cost)) goal = v;
+      }
+    }
+    if (!goal) for (const p of alive(b, u.side === 'enemy' ? 'player' : 'enemy')) {
       for (const v of far.stops.values()) {
         const d = dist(v.x, v.y, p.x, p.y);
         if (d < u.rmin || d > u.rmax) continue;
@@ -329,7 +357,7 @@ const Engine = (() => {
   }
 
   return {
-    key, dist, affinity, calcStats, makeUnit, createBattle, alive, unitAt, byUid, terrain,
+    key, dist, affinity, calcStats, chestAt, openChest, makeUnit, createBattle, alive, unitAt, byUid, terrain,
     reachable, pathTo, targetsFrom, healTargetsFrom, threatTiles, forecast, calcHit, calcDmg,
     doAttack, doHeal, startPhase, result, planAI, gainExp, defaultGain, MAX_LV,
   };

@@ -14,6 +14,7 @@ const Save = (() => {
 
   function fresh() {
     d = { v: 1, money: 500, roster: [], inv: {}, cleared: 0, nextId: 1, freeWins: 0 };
+    upgrade();
     syncRecruits();
     return d;
   }
@@ -48,6 +49,7 @@ const Save = (() => {
           }
           d.roster = d.roster.filter(u => CLASSES[u.cls]);
           d.inv = d.inv || {};
+          upgrade();
           syncRecruits();
           return d;
         }
@@ -56,6 +58,11 @@ const Save = (() => {
     fresh();
     write();
     return d;
+  }
+
+  // 古いセーブに新しい項目を足す（以前のデータはそのまま引き継ぐ）
+  function upgrade() {
+    if (!d.chests || typeof d.chests !== 'object') d.chests = {}; // { ステージキー: [取得済みの宝箱番号] }
   }
 
   function write() {
@@ -117,6 +124,33 @@ const Save = (() => {
     return true;
   }
 
+  // ---------- 宝箱 ----------
+  const stageKey = st => st.key || 's' + st.id;
+  const chestsTaken = st => (d.chests[stageKey(st)] || []).slice();
+  function chestCount(st) {
+    const total = (st.chests || []).length;
+    const got = chestsTaken(st).filter(i => i < total).length;
+    return { got, total };
+  }
+  // 宝箱の中身を受け取る（お金・武器・パーツ）
+  function grant(get) {
+    if (get.money) d.money += get.money;
+    if (get.item && item(get.item)) addItem(get.item);
+  }
+  function getLabel(get) {
+    if (get.money) return `💰${get.money}`;
+    if (get.item) { const it = item(get.item); return it ? (it.kind === 'weapon' ? '🗡 ' : '⚙️ ') + it.name : '？'; }
+    return '？';
+  }
+  // 宝箱を開けた：中身を受け取って記録
+  function takeChest(st, idx, get) {
+    const k = stageKey(st);
+    d.chests[k] = d.chests[k] || [];
+    if (!d.chests[k].includes(idx)) d.chests[k].push(idx);
+    grant(get);
+    write();
+  }
+
   // 戦闘結果（レベル・経験値）をロスターに反映
   function applyBattle(b) {
     for (const u of b.units) {
@@ -132,6 +166,7 @@ const Save = (() => {
   return {
     load, write, reset, item, count, addItem, removeItem, canEquip, equipWeapon, equipPart,
     buy, sell, sellPrice, applyBattle, syncRecruits, isDefaultWeapon,
+    stageKey, chestsTaken, chestCount, grant, getLabel, takeChest,
     get data() { return d; },
   };
 })();

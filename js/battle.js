@@ -13,10 +13,12 @@ const BattleUI = (() => {
   let reach = null;      // 移動範囲
   let origin = null;     // 移動前の位置
   const unitEls = new Map();
+  const chestEls = new Map();
 
-  function start(stage, playerSpecs, enemySpecs, onEnd) {
-    opts = { stage, onEnd };
-    b = E.createBattle(stage, playerSpecs, enemySpecs);
+  // extra: { chestsTaken, noChests, onChest(ev) }
+  function start(stage, playerSpecs, enemySpecs, onEnd, extra) {
+    opts = Object.assign({ stage, onEnd }, extra || {});
+    b = E.createBattle(stage, playerSpecs, enemySpecs, extra);
     mode = 'idle'; sel = null; reach = null;
     buildBoard();
     renderUnits();
@@ -45,6 +47,16 @@ const BattleUI = (() => {
     $('unitLayer').innerHTML = '';
     $('fxLayer').innerHTML = '';
     unitEls.clear();
+    chestEls.clear();
+    for (const c of b.chests) {
+      if (c.state !== 'closed') continue;
+      const el = document.createElement('div');
+      el.className = 'chest';
+      el.innerHTML = Art.chest();
+      placeEl(el, c.x, c.y);
+      $('unitLayer').appendChild(el);
+      chestEls.set(c.i, el);
+    }
     resize();
   }
 
@@ -262,7 +274,27 @@ const BattleUI = (() => {
     finishUnit(h);
   }
 
+  // 止まったマスに宝箱があれば開ける
+  async function openChestFor(u) {
+    const ev = E.openChest(b, u);
+    if (!ev) return;
+    const el = chestEls.get(ev.idx);
+    if (el) el.classList.add(ev.side === 'player' ? 'opening' : 'stolen');
+    if (ev.side === 'player') {
+      if (opts.onChest) opts.onChest(ev);
+      popText(u, '宝箱!', 'lvup');
+      toast(`宝箱を開けた！ ${Save.getLabel(ev.get)} を手に入れた`, 2000);
+    } else {
+      popText(u, '取られた!', 'kill');
+      toast('敵に宝箱を取られてしまった…', 1800);
+    }
+    await wait(650);
+    if (el) el.remove();
+  }
+
   async function finishUnit(u) {
+    mode = 'busy';
+    await openChestFor(u);
     u.acted = true;
     sel = null; reach = null;
     hideSheet(); clearMarks();
@@ -389,7 +421,7 @@ const BattleUI = (() => {
     let t = '';
     if (x !== undefined) {
       const tr = E.terrain(b, x, y);
-      t = `<div class="terrain">地形：<b>${tr.name}</b> 防御+${tr.def} 回避+${tr.avo}</div>`;
+      t = `<div class="terrain">地形：<b>${tr.name}</b> 防御+${tr.def} 回避+${tr.avo}${E.chestAt(b, x, y) ? '　🎁<b>宝箱</b>（止まると開く）' : ''}</div>`;
     }
     if (!u) {
       el.innerHTML = t || `<div class="hint">${b.phase === 'player' ? 'ユニットをタップして選択' : '敵が行動中…'}</div>`;
@@ -429,6 +461,7 @@ const BattleUI = (() => {
       await wait(200);
       clearMarks();
       if (plan.path.length > 1) await animMove(u, plan.path);
+      await openChestFor(u);
       if (plan.action) {
         const t = plan.action.target;
         if (plan.action.type === 'attack') {

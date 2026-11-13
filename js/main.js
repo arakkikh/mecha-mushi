@@ -83,6 +83,7 @@ const App = (() => {
       <p><b>相性</b>：牙 ▶ 甲 ▶ 翅 ▶ 牙（有利だとダメージ1.3倍・命中+15）</p>
       <p><b>地形</b>：森＝回避+20、岩場＝防御+3、水＝飛行ユニットのみ通れる。飛行ユニットは地形の効果を受けません。</p>
       <p>敵をタップすると、その敵が動ける範囲（オレンジ）を確認できます。</p>
+      <p><b>宝箱</b>：🎁のマスで行動を終えると開きます。中身はお金・武器・パーツなど。<b>敵が先に止まると取られてしまう</b>ので急ごう！ 取った宝箱は記録され、ステージ選択に「宝箱 2/3」のように表示されます。</p>
       </div><div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`);
   }
 
@@ -93,10 +94,12 @@ const App = (() => {
       const locked = i > d.cleared;
       const cleared = i < d.cleared;
       const lv = Math.max(...st.enemies.map(e => e.lv));
+      const cc = Save.chestCount(st);
       return `<button class="stage ${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}" data-act="stage" data-arg="${i}" ${locked ? 'disabled' : ''}>
         <div class="stage-no">${locked ? '🔒' : cleared ? '★' : 'NEW'}<br><small>STAGE ${i + 1}</small></div>
         <div class="grow"><div class="stage-name">${locked ? '？？？' : st.name}</div>
-        <div class="muted">${locked ? '前のステージをクリアすると解放' : `敵 ${st.enemies.length}体 / 最大Lv${lv} / 報酬 💰${st.reward.money}`}</div></div>
+        <div class="muted">${locked ? '前のステージをクリアすると解放' : `敵 ${st.enemies.length}体 / 最大Lv${lv} / 報酬 💰${st.reward.money}`}</div>
+        ${!locked && cc.total ? `<div class="chestinfo ${cc.got === cc.total ? 'done' : ''}">🎁 宝箱 ${cc.got}/${cc.total}${cc.got === cc.total ? ' コンプリート！' : ''}</div>` : ''}</div>
         ${locked ? '' : miniMap(st)}
       </button>`;
     }).join('');
@@ -116,12 +119,19 @@ const App = (() => {
     modal(`<h3>STAGE ${i + 1}<br>${st.name}</h3>
       <div class="story">${st.story.replace(/\n/g, '<br>')}</div>
       <div class="muted">敵の編成</div>${enemyIcons(st.enemies)}
+      ${chestLine(st)}
       <div class="reward"><span>報酬</span><b>💰${first ? st.reward.money : Math.floor(st.reward.money / 2)}${items ? ' ＋ ' + items : ''}</b></div>
       <div class="btnrow"><button class="btn" data-act="go">出撃準備へ</button><button class="btn gray" data-act="no">やめる</button></div>`,
     act => {
       if (act !== 'go') return;
       prep({ stage: st, enemies: st.enemies, mode: 'story', index: i, back: storyList });
     });
+  }
+
+  function chestLine(st) {
+    const cc = Save.chestCount(st);
+    if (!cc.total) return '';
+    return `<div class="reward"><span>宝箱</span><b class="chestinfo ${cc.got === cc.total ? 'done' : ''}">🎁 ${cc.got}/${cc.total}${cc.got === cc.total ? ' 全部取った！' : ''}</b></div>`;
   }
 
   // ---------- 出撃準備 ----------
@@ -159,13 +169,22 @@ const App = (() => {
     const party = sortie.map(id => d.roster.find(u => u.id === id)).filter(Boolean);
     const before = new Map(party.map(u => [u.id, u.lv]));
     show('scr-battle');
-    BattleUI.start(cfg.stage, party, cfg.enemies, (r, b) => onBattleEnd(cfg, r, b, before));
+    const got = [];
+    const extra = cfg.mode === 'story' ? {
+      chestsTaken: Save.chestsTaken(cfg.stage),
+      onChest: ev => { Save.takeChest(cfg.stage, ev.idx, ev.get); got.push(ev.get); },
+    } : { noChests: true };
+    BattleUI.start(cfg.stage, party, cfg.enemies, (r, b) => onBattleEnd(cfg, r, b, before, got), extra);
   }
 
-  function onBattleEnd(cfg, r, b, before) {
+  function onBattleEnd(cfg, r, b, before, got) {
     const d = D();
     Save.applyBattle(b); // 経験値は負けても残る
     const lines = [];
+    // 宝箱の中身は勝ち負けに関係なく持ち帰れる
+    for (const g of got || []) lines.push(`<div class="reward"><span>🎁 宝箱</span><b>${Save.getLabel(g)}</b></div>`);
+    const stolen = b.chests.filter(c => c.state === 'stolen').length;
+    if (stolen) lines.push(`<div class="reward"><span>宝箱</span><b class="down">敵に${stolen}個取られた…</b></div>`);
     let recruits = [];
     if (r === 'win') {
       let money = 0, items = [];

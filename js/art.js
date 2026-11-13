@@ -114,5 +114,16 @@ const Art = (() => {
     const c = PAL[side] || PAL.player;
     return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${(DRAW[cls] || DRAW.ari)(c)}</svg>`;
   }
-  return { svg, icon };
+  // 宝箱（木と金具の箱）
+  function chest() {
+    return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="32" cy="54" rx="20" ry="4" fill="rgba(0,0,0,.35)"/>
+      <g class="lid"><path d="M12 30 Q12 16 32 16 Q52 16 52 30 Z" fill="#c9782f" stroke="#5a2f0c" stroke-width="2.5"/>
+      <path d="M22 17.5 V30 M42 17.5 V30" stroke="#ffd34d" stroke-width="3"/></g>
+      <rect x="12" y="30" width="40" height="22" rx="2" fill="#a85a1f" stroke="#5a2f0c" stroke-width="2.5"/>
+      <path d="M22 30 V52 M42 30 V52" stroke="#ffd34d" stroke-width="3"/>
+      <rect x="28" y="27" width="8" height="10" rx="2" fill="#ffd34d" stroke="#7a5600" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="1.6" fill="#5a2f0c"/></svg>`;
+  }
+  return { svg, icon, chest };
 })();
