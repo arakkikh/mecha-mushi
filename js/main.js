@@ -96,15 +96,19 @@ const App = (() => {
   // ---------- ストーリー ----------
   function storyList() {
     const d = D();
+    const chapterOf = i => CHAPTERS.findIndex(c => i + 1 <= c.to);
     const html = STAGES.map((st, i) => {
+      const ch = chapterOf(i);
+      const head = (i === 0 || chapterOf(i - 1) !== ch) && CHAPTERS[ch]
+        ? `<div class="chapter ${i > d.cleared ? 'locked' : ''}"><b>${CHAPTERS[ch].name}</b><small>${i > d.cleared ? '？？？' : CHAPTERS[ch].desc}</small></div>` : '';
       const locked = i > d.cleared;
       const cleared = i < d.cleared;
       const lv = Math.max(...st.enemies.map(e => e.lv));
       const cc = Save.chestCount(st);
-      return `<button class="stage ${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}" data-act="stage" data-arg="${i}" ${locked ? 'disabled' : ''}>
+      return head + `<button class="stage ${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}" data-act="stage" data-arg="${i}" ${locked ? 'disabled' : ''}>
         <div class="stage-no">${locked ? '🔒' : cleared ? '★' : 'NEW'}<br><small>STAGE ${i + 1}</small></div>
         <div class="grow"><div class="stage-name">${locked ? '？？？' : st.name}</div>
-        <div class="muted">${locked ? '前のステージをクリアすると解放' : `敵 ${st.enemies.length}体 / 最大Lv${lv} / 報酬 💰${st.reward.money}`}</div>
+        <div class="muted">${locked ? '前のステージをクリアすると解放' : `🎯${Engine.goalText(st.goal || { type: 'rout' }, true)} / 敵${st.enemies.length + (st.waves || []).reduce((a, w) => a + w.enemies.length, 0)}体 / 最大Lv${lv}`}</div>
         ${!locked && cc.total ? `<div class="chestinfo ${cc.got === cc.total ? 'done' : ''}">🎁 宝箱 ${cc.got}/${cc.total}${cc.got === cc.total ? ' コンプリート！' : ''}</div>` : ''}</div>
         ${locked ? '' : miniMap(st)}
       </button>`;
@@ -122,8 +126,11 @@ const App = (() => {
     const st = STAGES[i];
     const first = i >= D().cleared;
     const items = first ? (st.reward.items || []).map(id => Save.item(id).name).concat((st.reward.cards || []).map(id => '🃏' + CARDS[id].name)).join('・') : '';
+    const g = st.goal || { type: 'rout' };
+    const waveN = (st.waves || []).reduce((a, w) => a + w.enemies.length, 0);
     modal(`<h3>STAGE ${i + 1}<br>${st.name}</h3>
       <div class="story">${st.story.replace(/\n/g, '<br>')}</div>
+      <div class="goalbox">🎯 勝利条件：<b>${Engine.goalText(g)}</b><br><small>出撃 ${st.start.length}体 / マップ ${st.rows[0].length}×${st.rows.length}${waveN ? ` / 増援 ${waveN}体` : ''}</small></div>
       <div class="muted">敵の編成</div>${enemyIcons(st.enemies)}
       ${chestLine(st)}
       <div class="reward"><span>報酬</span><b>💰${first ? st.reward.money : Math.floor(st.reward.money / 2)}${items ? ' ＋ ' + items : ''}</b></div>
@@ -241,7 +248,8 @@ const App = (() => {
     modal(`<h3 class="${win ? 'result-win' : 'result-lose'}">${win ? '🏆 勝利！' : '💥 敗北…'}</h3>
       ${win ? '' : '<p class="center muted">経験値は持ち帰りました。装備を見直して再挑戦しよう！</p>'}
       ${lines.join('')}
-      ${cfg.mode === 'story' && win && cfg.index + 1 === STAGES.length ? '<p class="center">ガラクタ軍団をやっつけた！<br>草原に平和が戻った。<br><b>— ストーリークリア！ —</b></p>' : ''}
+      ${cfg.mode === 'story' && win && cfg.index + 1 === STAGES.length ? '<p class="center">ガラクタ大王をたおし、天空要塞はくずれ落ちた。<br>ガラクタ軍団はいなくなり、虫たちの国に平和が戻った。<br><b>— ストーリークリア！ —</b><br><small class="muted">荒野モードでさらに強い敵が待っている…</small></p>' : ''}
+      ${cfg.mode === 'story' && win && cfg.index + 1 < STAGES.length && CHAPTERS.some(c => c.to === cfg.index + 1) ? `<p class="center c-gold"><b>${CHAPTERS.find(c => c.to === cfg.index + 1).name} クリア！</b></p>` : ''}
       <div class="btnrow">
         ${hasNext ? '<button class="btn" data-act="next">次のステージへ</button>' : ''}
         <button class="btn ${hasNext ? 'gray' : ''}" data-act="retry">${win ? 'もう一度' : '再挑戦'}</button>
@@ -282,7 +290,7 @@ const App = (() => {
     for (let i = 0; i < df.n && spots.length; i++) {
       let cls = pick(pool);
       if (i === 0 && diff >= 2) cls = 'kamakiri';
-      const ok = spots.filter(([x, y]) => stage.rows[y][x] !== 'W' || CLASSES[cls].move === 'fly');
+      const ok = spots.filter(([x, y]) => TERRAIN[stage.rows[y][x]].cost[CLASSES[cls].move] < 99);
       if (!ok.length) continue;
       const [x, y] = pick(ok);
       spots.splice(spots.findIndex(s => s[0] === x && s[1] === y), 1);
@@ -293,7 +301,8 @@ const App = (() => {
   }
 
   function makeFreeCfg() {
-    const stage = STAGES[freeSel.map];
+    // フリーバトルは常に「敵全滅」（増援・宝箱なし）
+    const stage = Object.assign({}, STAGES[freeSel.map], { goal: undefined, waves: undefined, chests: [] });
     const df = DIFFS[freeSel.diff];
     const enemies = genEnemies(stage, freeSel.diff);
     const lvSum = enemies.reduce((s, e) => s + e.lv, 0);
@@ -306,7 +315,9 @@ const App = (() => {
   }
 
   function freeBattle() {
-    const maps = STAGES.map((st, i) => `<button class="mapcard ${freeSel.map === i ? 'on' : ''}" data-act="map" data-arg="${i}">
+    const open = Math.min(STAGES.length, Math.max(1, D().cleared));
+    if (freeSel.map >= open) freeSel.map = 0;
+    const maps = STAGES.slice(0, open).map((st, i) => `<button class="mapcard ${freeSel.map === i ? 'on' : ''}" data-act="map" data-arg="${i}">
       ${miniMap(st)}<div class="mapname">${st.name}</div></button>`).join('');
     const diffs = DIFFS.map((df, i) => `<button class="btn small ${freeSel.diff === i ? '' : 'gray'}" data-act="diff" data-arg="${i}">${df.name}</button>`).join('');
     page('フリーバトル', `

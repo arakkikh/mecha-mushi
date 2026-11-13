@@ -4,7 +4,7 @@ const Engine = (() => {
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const key = (x, y) => x + ',' + y;
   const dist = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
-  const MAX_LV = 20;
+  const MAX_LV = 50;
 
   // 相性：+1=有利, -1=不利, 0=普通
   function affinity(a, d) {
@@ -82,6 +82,9 @@ const Engine = (() => {
       w: stage.rows[0].length, h: stage.rows.length,
       tiles: stage.rows.map(r => r.split('')),
       units: [], turn: 1, phase: 'player', nextUid: 1,
+      goal: stage.goal || { type: 'rout' },               // 勝利条件
+      waves: (stage.waves || []).map(w => Object.assign({ done: false }, w)), // 増援
+      reached: false,
       // 宝箱：state = closed（未開封）/ opened（味方が取得）/ stolen（敵が取得）/ done（以前に取得済み）
       deck: (extra.deck || []).map((id, i) => ({ i, id, used: false })), // 持ち込んだカード（1戦で1回ずつ）
       chests: extra.noChests ? [] : (stage.chests || []).map((c, i) => ({
@@ -115,34 +118,44 @@ const Engine = (() => {
   }
 
   // 移動範囲（ダイクストラ）。味方はすり抜け可・敵は通れない。
+  // 移動コスト（99以上は通れない）
+  const moveCost = (b, u, x, y) => terrain(b, x, y).cost[u.move] || 99;
+  // 移動範囲（コストごとのバケツで探索）。味方はすり抜け可・敵は通れない。
   function reachable(b, u, limit) {
     const mov = limit === undefined ? u.mov : limit;
+    const occ = new Map();
+    for (const o of b.units) if (o.hp > 0) occ.set(key(o.x, o.y), o);
     const all = new Map();
     all.set(key(u.x, u.y), { x: u.x, y: u.y, cost: 0, prev: null });
-    const q = [{ x: u.x, y: u.y, cost: 0 }];
-    while (q.length) {
-      q.sort((a, c) => a.cost - c.cost);
-      const cur = q.shift();
-      if (cur.cost > all.get(key(cur.x, cur.y)).cost) continue;
-      for (const [dx, dy] of DIRS) {
-        const nx = cur.x + dx, ny = cur.y + dy;
-        if (!inside(b, nx, ny)) continue;
-        const nc = cur.cost + terrain(b, nx, ny).cost[u.move];
-        if (nc > mov) continue;
-        const o = unitAt(b, nx, ny);
-        if (o && o.side !== u.side) continue;
-        const k = key(nx, ny);
-        const old = all.get(k);
-        if (!old || old.cost > nc) {
-          all.set(k, { x: nx, y: ny, cost: nc, prev: key(cur.x, cur.y) });
-          q.push({ x: nx, y: ny, cost: nc });
+    const buckets = [[[u.x, u.y]]];
+    for (let c = 0; c < buckets.length; c++) {
+      const bk = buckets[c];
+      if (!bk) continue;
+      for (const [cx, cy] of bk) {
+        const ck = key(cx, cy);
+        if (all.get(ck).cost !== c) continue;
+        for (const [dx, dy] of DIRS) {
+          const nx = cx + dx, ny = cy + dy;
+          if (!inside(b, nx, ny)) continue;
+          const tc = moveCost(b, u, nx, ny);
+          if (tc >= 99) continue;
+          const nc = c + tc;
+          if (nc > mov) continue;
+          const k = key(nx, ny);
+          const o = occ.get(k);
+          if (o && o.side !== u.side) continue;
+          const old = all.get(k);
+          if (!old || old.cost > nc) {
+            all.set(k, { x: nx, y: ny, cost: nc, prev: ck });
+            (buckets[nc] || (buckets[nc] = [])).push([nx, ny]);
+          }
         }
       }
     }
     // 止まれるマス（他ユニットがいないマス）
     const stops = new Map();
     for (const [k, v] of all) {
-      const o = unitAt(b, v.x, v.y);
+      const o = occ.get(k);
       if (!o || o === u) stops.set(k, v);
     }
     return { all, stops };
@@ -328,6 +341,20 @@ const Engine = (() => {
         u.hp = Math.min(u.maxhp, u.hp + u.regen);
         ev.push({ kind: 'heal', att: u.uid, def: u.uid, amount: u.hp - before });
       }
+      // 地形の効果（花畑で回復・毒沼や溶岩でダメージ。飛行は受けない。HPは1より下がらない）
+      if (u.move !== 'fly') {
+        const t = terrain(b, u.x, u.y);
+        if (t.heal && u.hp < u.maxhp) {
+          const before = u.hp;
+          u.hp = Math.min(u.maxhp, u.hp + t.heal);
+          ev.push({ kind: 'heal', att: u.uid, def: u.uid, amount: u.hp - before });
+        }
+        if (t.dmg && !(t.swimSafe && u.move === 'swim') && u.hp > 1) {
+          const dmg = Math.min(t.dmg, u.hp - 1);
+          u.hp -= dmg;
+          ev.push({ kind: 'tdmg', def: u.uid, dmg, name: t.name });
+        }
+      }
       const ps = u.st && u.st.poison;
       if (ps) { // 毒：HPは1より下がらない
         const dmg = Math.min(ps.dmg, u.hp - 1);
@@ -364,7 +391,7 @@ const Engine = (() => {
 
   // ===== カード =====
   const cardFoe = c => c.kind === 'attack' || c.kind === 'status';
-  const passable = (b, u, x, y) => terrain(b, x, y).cost[u.move] < 99;
+  const passable = (b, u, x, y) => moveCost(b, u, x, y) < 99;
   // (x,y) を中心に効果を受けるユニット
   function cardAffected(b, u, c, x, y) {
     if (c.kind === 'warp') return [];
@@ -465,16 +492,63 @@ const Engine = (() => {
     return best;
   }
 
+  // 勝敗：goal.type = rout（全滅）/ boss（ボス撃破）/ reach（拠点到達）/ defend（Nターン防衛）
   function result(b) {
-    if (alive(b, 'enemy').length === 0) return 'win';
+    const g = b.goal;
     if (alive(b, 'player').length === 0) return 'lose';
+    if (g.base && alive(b, 'enemy').some(u => u.x === g.base[0] && u.y === g.base[1])) return 'lose';
+    if (alive(b, 'enemy').length === 0 && !b.waves.some(w => !w.done)) return 'win';
+    if (g.type === 'boss' && !alive(b, 'enemy').some(u => u.boss)) return 'win';
+    if (g.type === 'reach' && b.reached) return 'win';
+    if (g.type === 'defend' && b.turn > g.turns) return 'win';
     return null;
+  }
+  // 拠点到達のチェック（味方が行動を終えたとき）
+  function checkReach(b, u) {
+    if (b.goal.type === 'reach' && u.side === 'player' && u.hp > 0 && u.x === b.goal.x && u.y === b.goal.y) b.reached = true;
+    return b.reached;
+  }
+  // 増援：このターンの敵を出す（指定マスがふさがっていたら近くの空きマス）→ 出したユニット
+  function spawnWaves(b) {
+    const out = [];
+    for (const w of b.waves) {
+      if (w.done || w.turn > b.turn) continue;
+      w.done = true;
+      for (const e of w.enemies) {
+        const tmp = makeUnit(e, 'enemy', e.x, e.y, b.nextUid);
+        let best = null;
+        for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) {
+          if (unitAt(b, x, y) || moveCost(b, tmp, x, y) >= 99) continue;
+          const d = dist(x, y, e.x, e.y);
+          if (!best || d < best.d) best = { x, y, d };
+        }
+        if (!best) continue;
+        tmp.x = best.x; tmp.y = best.y; b.nextUid++;
+        b.units.push(tmp);
+        out.push(tmp);
+      }
+    }
+    return out;
+  }
+  // 勝利条件の説明
+  function goalText(g, short) {
+    if (g.type === 'boss') return short ? 'ボス撃破' : 'ボスを倒せ！';
+    if (g.type === 'reach') return short ? '拠点到達' : '🚩のマスに味方をたどり着かせろ！';
+    if (g.type === 'defend') return short ? `${g.turns}ターン防衛` : `${g.turns}ターン守りきれ！${g.base ? '（🏠に敵が入ると負け）' : ''}`;
+    return short ? '敵全滅' : '敵を全滅させろ！';
   }
 
   // ===== 敵AI =====
   // 行動計画 { to:{x,y}, path, action:{type:'attack'|'heal', target} | null }
   function planAI(b, u) {
-    const res = u.ai === 'boss' ? reachable(b, u, 0) : reachable(b, u);
+    let res = u.ai === 'boss' ? reachable(b, u, 0) : reachable(b, u);
+    // 防衛ステージの味方CPU：拠点に誰もいなければ1体が入る。入っている者はそこから動かない
+    const base = b.goal.base;
+    if (u.side === 'player' && base) {
+      const bk = key(base[0], base[1]);
+      if (u.x === base[0] && u.y === base[1]) res = reachable(b, u, 0);
+      else if (!unitAt(b, base[0], base[1]) && res.stops.has(bk)) res = { all: res.all, stops: new Map([[bk, res.stops.get(bk)]]) };
+    }
     let best = null;
     const consider = (score, v, action) => {
       if (!best || score > best.score) best = { score, to: { x: v.x, y: v.y }, action };
@@ -491,7 +565,7 @@ const Engine = (() => {
         if (f.dmg >= t.hp) s += 40 * f.hit / 100;   // 倒せるなら優先
         if (f.counter) s -= f.counter.hit / 100 * f.counter.dmg * 0.8;
         if (t.heal) s += 4;                          // 回復役を狙う
-        s += tb.def * 1.5 - v.cost * 0.05 + cb;
+        s += tb.def * 1.5 - v.cost * 0.05 + cb + (tb.heal || 0) * 0.8 - (tb.dmg || 0) * 1.5;
         consider(s, v, { type: 'attack', target: t });
       }
       for (const t of healTargetsFrom(b, u, v.x, v.y)) {
@@ -500,7 +574,15 @@ const Engine = (() => {
         consider(amt * 1.5 + tb.def, v, { type: 'heal', target: t });
       }
     }
-    if (best) return { to: best.to, path: pathTo(res, best.to.x, best.to.y), action: best.action };
+    const g = b.goal;
+    // 拠点到達ステージ：味方CPUは届くなら拠点へ
+    if (u.side === 'player' && g.type === 'reach' && res.stops.has(key(g.x, g.y))) {
+      return { to: { x: g.x, y: g.y }, path: pathTo(res, g.x, g.y), action: null };
+    }
+    // 拠点攻め（raid）：拠点に届くなら入る。強い攻撃がなければ拠点へ向かう
+    const raid = u.ai === 'raid' && g.base;
+    if (raid && res.stops.has(key(g.base[0], g.base[1]))) return { to: { x: g.base[0], y: g.base[1] }, path: pathTo(res, g.base[0], g.base[1]), action: null };
+    if (best && !(raid && best.score < 15)) return { to: best.to, path: pathTo(res, best.to.x, best.to.y), action: best.action };
 
     // 攻撃できない場合：待ち伏せ型・ボスはその場で待機
     if (u.ai === 'hold' || u.ai === 'boss') return { to: { x: u.x, y: u.y }, path: [], action: null };
@@ -508,6 +590,9 @@ const Engine = (() => {
     // どろぼう型は一番近い宝箱へ、それ以外は一番近い相手ユニットへ向かう
     const far = reachable(b, u, 999);
     let goal = null;
+    const toward = (tx, ty) => { const v = far.all.get(key(tx, ty)); return v ? Object.assign({}, v) : null; };
+    if (raid) goal = toward(g.base[0], g.base[1]);
+    if (!goal && u.side === 'player' && g.type === 'reach') goal = toward(g.x, g.y);
     if (u.ai === 'thief') {
       for (const c of b.chests) {
         if (c.state !== 'closed') continue;
@@ -523,7 +608,7 @@ const Engine = (() => {
       }
     }
     if (!goal) return { to: { x: u.x, y: u.y }, path: [], action: null };
-    const full = pathTo(far, goal.x, goal.y);
+    let full = pathTo(far, goal.x, goal.y);
     // 移動力の範囲で、パスに沿ってできるだけ進む
     let to = { x: u.x, y: u.y };
     for (const step of full) {
@@ -536,7 +621,7 @@ const Engine = (() => {
 
   return {
     key, dist, affinity, calcStats, chestAt, openChest, cardTiles, cardAffected, cardDamage, useCard, planCard, applyBuff, makeUnit, createBattle, alive, unitAt, byUid, terrain,
-    reachable, pathTo, targetsFrom, healTargetsFrom, threatTiles, forecast, calcHit, calcDmg,
+    reachable, pathTo, targetsFrom, checkReach, spawnWaves, goalText, moveCost, healTargetsFrom, threatTiles, forecast, calcHit, calcDmg,
     doAttack, doHeal, startPhase, result, planAI, gainExp, defaultGain, MAX_LV,
   };
 })();

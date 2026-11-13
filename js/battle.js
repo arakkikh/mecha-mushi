@@ -26,7 +26,9 @@ const BattleUI = (() => {
     updateTop();
     showInfo(null);
     hideSheet();
-    banner('自軍フェイズ', 'player');
+    $('goalBar').innerHTML = `🎯 ${E.goalText(b.goal)}`;
+    banner(`🎯 ${E.goalText(b.goal, true)}`, 'player');
+    ensureVisible(b.units[0].x, b.units[0].y, true);
     return b;
   }
 
@@ -58,15 +60,98 @@ const BattleUI = (() => {
       $('unitLayer').appendChild(el);
       chestEls.set(c.i, el);
     }
+    // 拠点・守る場所の目印
+    const g = b.goal;
+    const mark = (x, y, cls, txt) => {
+      const el = document.createElement('div');
+      el.className = 'mapmark ' + cls; el.textContent = txt;
+      placeEl(el, x, y);
+      $('unitLayer').appendChild(el);
+    };
+    if (g.type === 'reach') mark(g.x, g.y, 'goal', '🚩');
+    if (g.base) mark(g.base[0], g.base[1], 'base', '🏠');
+    zoom = null;
     resize();
   }
 
+  // ---------- 盤面の大きさ（スクロール・拡大縮小） ----------
+  let zoom = null;   // プレイヤーが選んだマスの大きさ（px）。null=自動
+  let cellPx = 44;
+  function fitCell() {
+    const v = $('boardView');
+    const w = (v.clientWidth || window.innerWidth) - 8;
+    const h = (v.clientHeight || window.innerHeight - 220) - 8;
+    return Math.floor(Math.min(w / b.w, h / b.h));
+  }
+  const zoomRange = () => { const f = fitCell(); return [Math.max(18, Math.min(f, 40)), 64]; };
   function resize() {
     if (!b) return;
+    const f = fitCell();
+    // 小さいマップは画面に収める。大きいマップは見やすい大きさ（38px）でスクロール
+    const auto = f >= 34 ? Math.min(f, 60) : 38;
+    const [lo, hi] = zoomRange();
+    setCell(zoom ? Math.max(lo, Math.min(hi, zoom)) : auto);
+  }
+  function setCell(px, ax, ay) {
+    const v = $('boardView');
+    const old = cellPx;
+    cellPx = Math.round(px);
+    $('boardWrap').style.setProperty('--cell', cellPx + 'px');
+    // 拡大の中心（画面上の ax, ay）がずれないようにスクロールを合わせる
+    if (ax !== undefined && old) {
+      const r = cellPx / old;
+      v.scrollLeft = (v.scrollLeft + ax) * r - ax;
+      v.scrollTop = (v.scrollTop + ay) * r - ay;
+    }
+    const [lo] = zoomRange();
+    $('zoomBtns').classList.toggle('hidden', fitCell() >= 34 && cellPx <= fitCell() && lo >= fitCell());
+  }
+  function zoomBy(r) {
+    const v = $('boardView');
+    const [lo, hi] = zoomRange();
+    zoom = Math.max(lo, Math.min(hi, cellPx * r));
+    setCell(zoom, (v.clientWidth || 0) / 2, (v.clientHeight || 0) / 2);
+  }
+  // (x, y) のマスが見えるようにスクロール
+  function ensureVisible(x, y, instant) {
+    const v = $('boardView');
+    if (!v.clientWidth || !v.scrollTo) return;
     const wrap = $('boardWrap');
-    const availH = window.innerHeight - 170; // 上部バー＋情報パネルぶん
-    const cell = Math.floor(Math.min((window.innerWidth - 8) / b.w, availH / b.h, 60));
-    wrap.style.setProperty('--cell', Math.max(28, cell) + 'px');
+    const px = wrap.offsetLeft + x * cellPx, py = wrap.offsetTop + y * cellPx;
+    const m = cellPx * 1.5;
+    let sl = v.scrollLeft, st = v.scrollTop;
+    if (px < sl + m || px + cellPx > sl + v.clientWidth - m) sl = px - v.clientWidth / 2 + cellPx / 2;
+    if (py < st + m || py + cellPx > st + v.clientHeight - m) st = py - v.clientHeight / 2 + cellPx / 2;
+    if (sl !== v.scrollLeft || st !== v.scrollTop) v.scrollTo({ left: sl, top: st, behavior: instant ? 'auto' : 'smooth' });
+  }
+  // 2本指のピンチで拡大縮小
+  function initPinch() {
+    const v = $('boardView');
+    let pin = null;
+    const d = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    v.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        const r = v.getBoundingClientRect();
+        pin = { d0: d(e.touches), c0: cellPx, ax: (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, ay: (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top };
+      }
+    }, { passive: true });
+    v.addEventListener('touchmove', e => {
+      if (!pin || e.touches.length !== 2) return;
+      e.preventDefault();
+      const [lo, hi] = zoomRange();
+      zoom = Math.max(lo, Math.min(hi, pin.c0 * d(e.touches) / pin.d0));
+      if (Math.abs(zoom - cellPx) >= 1) setCell(zoom, pin.ax, pin.ay);
+    }, { passive: false });
+    v.addEventListener('touchend', e => { if (e.touches.length < 2) pin = null; });
+    // パソコンのトラックパッド（ctrl+ホイール）
+    v.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const r = v.getBoundingClientRect();
+      const [lo, hi] = zoomRange();
+      zoom = Math.max(lo, Math.min(hi, cellPx * (e.deltaY < 0 ? 1.08 : 0.93)));
+      setCell(zoom, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
   }
 
   function cellEl(x, y) { return $('board').children[y * b.w + x]; }
@@ -106,7 +191,7 @@ const BattleUI = (() => {
   }
 
   function updateTop() {
-    $('turnLabel').textContent = `ターン ${b.turn}`;
+    $('turnLabel').textContent = b.goal.type === 'defend' ? `ターン ${b.turn}/${b.goal.turns}` : `ターン ${b.turn}`;
     $('phaseLabel').textContent = b.phase === 'player' ? '自軍フェイズ' : '敵フェイズ';
     $('phaseLabel').className = 'phase ' + b.phase;
     $('btnEnd').disabled = b.phase !== 'player';
@@ -180,6 +265,7 @@ const BattleUI = (() => {
 
   function select(u) {
     sel = u; mode = 'selected';
+    ensureVisible(u.x, u.y);
     reach = E.reachable(b, u);
     markReach(u, reach);
     cellEl(u.x, u.y).classList.add('cur');
@@ -385,6 +471,7 @@ const BattleUI = (() => {
   async function finishUnit(u) {
     mode = 'busy';
     await openChestFor(u);
+    if (E.checkReach(b, u)) popText(u, '到達!', 'lvup');
     u.acted = true;
     sel = null; reach = null;
     hideSheet(); clearMarks();
@@ -470,6 +557,7 @@ const BattleUI = (() => {
     else if (ev.kind === 'status') popText(t, STATUS_TEXT[ev.s], 'kill');
     else if (ev.kind === 'resist') popText(t, '効かない!', 'miss');
     else if (ev.kind === 'endure') popText(t, 'ふんばった!', 'lvup');
+    else if (ev.kind === 'tdmg') { popText(t, `${ev.name} -${ev.dmg}`, 'dmg'); updateHp(t); }
     else if (ev.kind === 'cleanse') popText(t, '状態回復', 'healnum');
     else if (ev.kind === 'poison') { popText(t, '毒 -' + ev.dmg, 'dmg'); updateHp(t); }
     else if (ev.kind === 'para') popText(t, 'マヒで動けない', 'miss');
@@ -588,6 +676,14 @@ const BattleUI = (() => {
     banner('敵フェイズ', 'enemy');
     await wait(900);
     if (ev.length) await playEvents(ev);
+    const spawned = E.spawnWaves(b);
+    if (spawned.length) {
+      ensureVisible(spawned[0].x, spawned[0].y);
+      renderUnits();
+      banner('敵の増援！', 'enemy');
+      toast(`敵の増援が${spawned.length}体あらわれた！`);
+      await wait(1000);
+    }
     await enemyPhase();
   }
 
@@ -596,6 +692,7 @@ const BattleUI = (() => {
     for (const u of enemies) {
       if (u.hp <= 0 || u.acted) continue; // マヒ中は行動しない
       const plan = E.planAI(b, u);
+      ensureVisible(u.x, u.y);
       showInfo(u, u.x, u.y);
       cellEl(u.x, u.y).classList.add('cur');
       await wait(200);
@@ -625,6 +722,7 @@ const BattleUI = (() => {
     renderUnits();
     banner('自軍フェイズ', 'player');
     if (ev.length) await playEvents(ev);
+    if (await checkEnd()) return; // 防衛ステージの勝利など
     showInfo(null);
     mode = 'idle';
     // 全員マヒなどで動けないときは自動でターン終了
@@ -652,6 +750,9 @@ const BattleUI = (() => {
       if (b && b.phase === 'player' && mode !== 'busy' && mode !== 'over') endPlayerPhase();
     });
     window.addEventListener('resize', resize);
+    initPinch();
+    $('zoomIn').onclick = () => zoomBy(1.2);
+    $('zoomOut').onclick = () => zoomBy(1 / 1.2);
   }
 
   return { init, start, resize, tapCell, endPlayerPhase, get state() { return b; }, get mode() { return mode; } };

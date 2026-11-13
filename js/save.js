@@ -24,7 +24,10 @@ const Save = (() => {
     const added = [];
     for (const r of RECRUITS) {
       if (r.join <= d.cleared && !d.roster.some(u => u.recruit && u.cls === r.cls)) {
+        // 途中から加わる仲間は、今の仲間の平均レベル-1で加入
+        const avg = d.roster.length ? Math.round(d.roster.reduce((a, x) => a + x.lv, 0) / d.roster.length) : 1;
         const u = newUnit(r.cls, r.name, true);
+        if (r.join > 0 && avg > 2) { u.lv = Math.min(Engine.MAX_LV, avg - 1); u.gain = Engine.defaultGain(r.cls, u.lv); }
         d.roster.push(u);
         added.push(u);
       }
