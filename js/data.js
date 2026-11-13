@@ -115,7 +115,7 @@ const RECRUITS = [
 
 // ステージ（マップ 8×10）。G=草地 F=森 R=岩場 W=水
 // start=味方の出撃位置, enemies=敵配置（ai: aggressive=突撃 / hold=待ち伏せ / boss=動かない / thief=宝箱どろぼう）
-// chests=宝箱（get: { money: 数 } / { item: 武器・パーツID } / { card: カードID }）。取得記録は配列の順番で保存するので、追加は末尾へ
+// chests=宝箱（get: { money: 数 } / { item: 武器・パーツID } / { card: カードID } / { recipe: レシピID }）。取得記録は配列の順番で保存するので、追加は末尾へ
 
 const STAGES = [
   {
@@ -138,7 +138,7 @@ const STAGES = [
       { cls: 'ari', lv: 2, x: 1, y: 1 }, { cls: 'ari', lv: 2, x: 6, y: 2, ai: 'thief' }, { cls: 'ga', lv: 2, x: 3, y: 0 }, { cls: 'kabuto', lv: 2, x: 5, y: 0 },
     ],
     reward: { money: 400, items: ['power_motor'], cards: ['hari_dan'] },
-    chests: [{ x: 0, y: 4, get: { money: 200 } }, { x: 7, y: 1, get: { item: 'energy_cell' } }, { x: 6, y: 0, get: { item: 'lockon' } }, { x: 2, y: 5, get: { card: 'koishi' } }],
+    chests: [{ x: 0, y: 4, get: { money: 200 } }, { x: 7, y: 1, get: { item: 'energy_cell' } }, { x: 6, y: 0, get: { item: 'lockon' } }, { x: 2, y: 5, get: { card: 'koishi' } }, { x: 7, y: 6, get: { recipe: 'r_suna' } }],
   },
   {
     id: 3, name: '川辺の戦い',
@@ -162,7 +162,7 @@ const STAGES = [
       { cls: 'ari', lv: 5, x: 2, y: 0 }, { cls: 'tentou', lv: 5, x: 4, y: 0 },
     ],
     reward: { money: 600, items: ['lockon'], cards: ['katai_koura'] },
-    chests: [{ x: 0, y: 0, get: { item: 'power_motor' } }, { x: 7, y: 0, get: { money: 300 } }, { x: 7, y: 7, get: { money: 150 } }, { x: 3, y: 4, get: { card: 'inazuma_hari' } }],
+    chests: [{ x: 0, y: 0, get: { item: 'power_motor' } }, { x: 7, y: 0, get: { money: 300 } }, { x: 7, y: 7, get: { money: 150 } }, { x: 3, y: 4, get: { card: 'inazuma_hari' } }, { x: 4, y: 1, get: { recipe: 'r_toome' } }],
   },
   {
     id: 5, name: 'ぬかるみの湿地',
@@ -186,7 +186,7 @@ const STAGES = [
       { cls: 'ga', lv: 9, x: 4, y: 0 }, { cls: 'tentou', lv: 9, x: 4, y: 1 }, { cls: 'kuwagata', lv: 9, x: 2, y: 2 },
     ],
     reward: { money: 900, items: ['stealth'], cards: ['kazekiri'] },
-    chests: [{ x: 0, y: 0, get: { item: 'repair_nano' } }, { x: 7, y: 0, get: { money: 400 } }, { x: 0, y: 7, get: { item: 'armor_plate' } }, { x: 3, y: 4, get: { card: 'kagerou' } }],
+    chests: [{ x: 0, y: 0, get: { item: 'repair_nano' } }, { x: 7, y: 0, get: { money: 400 } }, { x: 0, y: 7, get: { item: 'armor_plate' } }, { x: 3, y: 4, get: { card: 'kagerou' } }, { x: 7, y: 4, get: { recipe: 'r_kagerou' } }],
   },
   {
     id: 7, name: '大河の渡し',
@@ -210,7 +210,7 @@ const STAGES = [
       { cls: 'kuwagata', lv: 10, x: 4, y: 2 }, { cls: 'tentou', lv: 10, x: 3, y: 0 }, { cls: 'kamakiri', lv: 11, x: 4, y: 0, ai: 'hold', boss: true, name: 'カマキリ副長' },
     ],
     reward: { money: 1200, items: ['turbo_leg'], cards: ['suna_arashi'] },
-    chests: [{ x: 0, y: 0, get: { item: 'overdrive' } }, { x: 7, y: 9, get: { money: 300 } }, { x: 7, y: 0, get: { item: 'big_battery' } }, { x: 3, y: 4, get: { card: 'teppeki' } }],
+    chests: [{ x: 0, y: 0, get: { item: 'overdrive' } }, { x: 7, y: 9, get: { money: 300 } }, { x: 7, y: 0, get: { item: 'big_battery' } }, { x: 3, y: 4, get: { card: 'teppeki' } }, { x: 0, y: 5, get: { recipe: 'r_nemuri' } }],
   },
   {
     id: 9, name: '嵐の高原',
@@ -235,7 +235,7 @@ const STAGES = [
       { cls: 'ga', lv: 16, x: 6, y: 2 }, { cls: 'kuwagata', lv: 16, x: 3, y: 3 }, { cls: 'hachi', lv: 16, x: 5, y: 3 },
     ],
     reward: { money: 2000, items: ['thunder_horn'], cards: ['tsuno_hou'] },
-    chests: [{ x: 0, y: 4, get: { item: 'meteor_scale' } }, { x: 7, y: 0, get: { money: 1000 } }, { x: 0, y: 0, get: { item: 'turbo_leg' } }, { x: 3, y: 0, get: { card: 'royal_nectar' } }],
+    chests: [{ x: 0, y: 4, get: { item: 'meteor_scale' } }, { x: 7, y: 0, get: { money: 1000 } }, { x: 0, y: 0, get: { item: 'turbo_leg' } }, { x: 3, y: 0, get: { card: 'royal_nectar' } }, { x: 7, y: 4, get: { recipe: 'r_raimei' } }],
   },
 ];
 
@@ -286,7 +286,7 @@ const CARDS = {
   toomegane:    { name: 'トオメガネ',         kind: 'buff', rank: 2, range: 1, buff: { k: 'rmax', v: 1, t: 3 }, icon: '🔭', desc: '射程+1（3ターン）' },
   kagerou:      { name: 'カゲロウ',           kind: 'buff', rank: 2, range: 1, buff: { k: 'avo', v: 30, t: 2 }, icon: '👻', desc: '回避+30（2ターン）' },
   ouen_uta:     { name: 'オウエン歌',         kind: 'buff', rank: 2, self: true, area: 2, buff: { k: 'atk', v: 3, t: 2 }, icon: '🎵', desc: 'まわり2マスの味方の攻撃+3（2ターン）' },
-  kakusei:      { name: 'カクセイ',           kind: 'buff', rank: 3, range: 1, buff: { k: 'atk', v: 9, t: 3 }, icon: '🔥', desc: '攻撃+9（3ターン）' },
+  kakusei:      { name: 'カクセイ',           kind: 'buff', rank: 3, range: 1, buff: { k: 'atk', v: 9, t: 3 }, icon: '🌟', desc: '攻撃+9（3ターン）' },
   teppeki:      { name: 'テッペキ',           kind: 'buff', rank: 3, range: 1, buff: { k: 'def', v: 9, t: 3 }, icon: '🏰', desc: '防御+9（3ターン）' },
   // --- ワープ ---
   warp_pod:     { name: 'ワープ・ポッド',     kind: 'warp', rank: 1, range: 5, warp: 'tile', icon: '🛸', desc: '5マス以内の空きマスへ瞬間移動' },
@@ -314,3 +314,40 @@ const CARD_PACKS = [
   { id: 'normal', name: 'ノーマルパック', price: 300,  count: 3, rate: [70, 27, 3, 0],  desc: '★1〜★2が中心。たまに★3' },
   { id: 'gold',   name: 'ゴールドパック', price: 1200, count: 3, rate: [0, 60, 40, 0],  desc: '★2〜★3だけが出る', unlock: 5 },
 ];
+
+// ===== カード合成レシピ =====
+// in: { 材料カードID: 枚数 }（合計2〜4枚）, out: できるカード, known: true=最初から知っている
+// レシピは宝箱（get: { recipe: 'ID' }）で見つけるか、合成画面で材料を試して発見する
+const RECIPES = {
+  r_inazuma:  { in: { hari_dan: 3 }, out: 'inazuma_hari', known: true },
+  r_hanamitsu:{ in: { mitsu: 3 }, out: 'hana_mitsu', known: true },
+  r_kakusei:  { in: { power_jushi: 3 }, out: 'kakusei', known: true },
+  r_teppeki:  { in: { katai_koura: 3 }, out: 'teppeki', known: true },
+  r_hinoko:   { in: { koishi: 3 }, out: 'hinoko' },
+  r_kazekiri: { in: { koishi: 2, hayabane: 1 }, out: 'kazekiri' },
+  r_suna:     { in: { tsubu_bomb: 3 }, out: 'suna_arashi' },
+  r_hanabi:   { in: { tsubu_bomb: 2, hinoko: 1 }, out: 'hanabi' },
+  r_tsuno:    { in: { inazuma_hari: 2, power_jushi: 1 }, out: 'tsuno_hou' },
+  r_hoshi:    { in: { kazekiri: 2, toomegane: 1 }, out: 'hoshifuri' },
+  r_giga:     { in: { power_jushi: 2, hinoko: 2 }, out: 'giga_slash' },
+  r_rinpun:   { in: { hanabi: 2, suna_arashi: 1 }, out: 'rinpun_storm' },
+  r_raimei:   { in: { tsuno_hou: 2, inazuma_hari: 2 }, out: 'raimei' },
+  r_sorawari: { in: { hoshifuri: 2, raimei: 1 }, out: 'sorawari' },
+  r_daichi:   { in: { rinpun_storm: 2, suna_arashi: 2 }, out: 'daichi_yure' },
+  r_repair:   { in: { mitsu: 1, doku_bari: 1 }, out: 'repair_gel' },
+  r_asatsuyu: { in: { mitsu: 2, repair_gel: 1 }, out: 'asatsuyu' },
+  r_royal:    { in: { hana_mitsu: 3 }, out: 'royal_nectar' },
+  r_megumi:   { in: { asatsuyu: 2, royal_nectar: 1 }, out: 'megumi' },
+  r_toome:    { in: { hayabane: 2, koishi: 1 }, out: 'toomegane' },
+  r_kagerou:  { in: { hayabane: 2, katai_koura: 1 }, out: 'kagerou' },
+  r_ouen:     { in: { power_jushi: 2, mitsu: 1 }, out: 'ouen_uta' },
+  r_irekae:   { in: { warp_pod: 2 }, out: 'irekae' },
+  r_jikuu:    { in: { warp_pod: 2, irekae: 1 }, out: 'jikuu_tunnel' },
+  r_ashidome: { in: { tsubu_bomb: 1, shibire_kona: 1 }, out: 'ashidome' },
+  r_nemuri:   { in: { shibire_kona: 3 }, out: 'nemuri_kona' },
+  r_yowami:   { in: { ashidome: 2, shibire_kona: 1 }, out: 'yowami' },
+  r_sabi:     { in: { doku_bari: 1, ashidome: 2 }, out: 'sabi_eki' },
+  r_moudoku:  { in: { doku_bari: 2, nemuri_kona: 1 }, out: 'moudoku' },
+  r_tokitome: { in: { nemuri_kona: 2, moudoku: 1 }, out: 'tokitome' },
+};
+const SYNTH_SLOTS = 4; // 合成で一度に入れられる枚数

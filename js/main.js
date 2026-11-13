@@ -435,7 +435,7 @@ const App = (() => {
       <div class="btnrow"><button class="btn" data-act="ok">閉じる</button></div>`);
   }
   function cardTabs(tab) {
-    return `<div class="tabs">${[['deck', 'デッキ編集'], ['book', '図鑑']].map(([k, n]) => `<button class="tab ${tab === k ? 'on' : ''}" data-act="ctab" data-arg="${k}">${n}</button>`).join('')}</div>`;
+    return `<div class="tabs">${[['deck', 'デッキ編集'], ['synth', '合成'], ['book', '図鑑']].map(([k, n]) => `<button class="tab ${tab === k ? 'on' : ''}" data-act="ctab" data-arg="${k}">${n}</button>`).join('')}</div>`;
   }
   function cardsPage(tab, back, keep) {
     if (back) cardsBack = back;
@@ -457,6 +457,8 @@ const App = (() => {
             <span class="stepper"><button data-act="minus" data-arg="${id}" ${n ? '' : 'disabled'}>−</button><b>${n}</b><small>/${lim}</small>
             <button data-act="plus" data-arg="${id}" ${n < lim && d.deck.length < DECK_SIZE ? '' : 'disabled'}>＋</button></span></div>`;
         }).join('') + `<div class="muted center small">同じカードは${DECK_MAX_SAME}枚まで（持っている枚数まで）入れられます</div>`;
+    } else if (tab === 'synth') {
+      html += synthHtml();
     } else {
       const all = Object.keys(CARDS);
       const seen = all.filter(id => d.seen[id]).length;
@@ -471,7 +473,66 @@ const App = (() => {
       else if (a === 'auto') { Save.autoDeck(); toast('おまかせでデッキを組みました'); cardsPage('deck', null, true); }
       else if (a === 'clear') { Save.deckClear(); cardsPage('deck', null, true); }
       else if (a === 'cinfo') cardInfo(arg);
+      else if (a === 'potadd') { if (pot.length < SYNTH_SLOTS && potLeft(arg) > 0) pot.push(arg); cardsPage('synth', null, true); }
+      else if (a === 'potdel') { pot.splice(Number(arg), 1); cardsPage('synth', null, true); }
+      else if (a === 'potclear') { pot = []; cardsPage('synth', null, true); }
+      else if (a === 'potfill') { pot = Save.recipeList(arg); cardsPage('synth', null, true); }
+      else if (a === 'synth') doSynth();
     }, keep);
+  }
+
+  // ---------- カード合成 ----------
+  let pot = []; // なべに入れた材料
+  const potLeft = id => Save.cardCount(id) - pot.filter(x => x === id).length;
+  function potMessage() {
+    if (!pot.length) return '<span class="muted">下の手持ちカードをタップして、なべに入れよう（最大' + SYNTH_SLOTS + '枚）</span>';
+    const rid = Save.findRecipe(pot);
+    if (rid && D().recipes[rid]) return `→ <b>${CARDS[RECIPES[rid].out].icon} ${CARDS[RECIPES[rid].out].name}</b> ができる！`;
+    if (rid) return '<b class="c-gold">✨ 何かが起こりそう…！</b>';
+    if (Save.nearRecipe(pot)) return '<span class="c-gold">あと少しで何かできそう…</span>';
+    return '<span class="muted">この組み合わせでは何もできなさそう</span>';
+  }
+  function synthHtml() {
+    const d = D();
+    pot = pot.filter(id => Save.cardCount(id) > 0);
+    while (pot.some(id => potLeft(id) < 0)) pot.splice(pot.findIndex(id => potLeft(id) < 0), 1);
+    const slots = [];
+    for (let i = 0; i < SYNTH_SLOTS; i++) {
+      const id = pot[i];
+      slots.push(id ? `<button class="potslot k-${CARDS[id].kind}" data-act="potdel" data-arg="${i}"><span>${CARDS[id].icon}</span><small>${CARDS[id].name}</small><i>×</i></button>` : '<div class="potslot empty">＋</div>');
+    }
+    const rids = Object.keys(RECIPES);
+    const known = rids.filter(r => d.recipes[r]);
+    const recipes = known.map(rid => {
+      const r = RECIPES[rid], o = CARDS[r.out];
+      const mats = Object.entries(r.in).map(([k, v]) => `<span class="mat ${Save.cardCount(k) >= v ? 'ok' : 'ng'}">${CARDS[k].icon}${CARDS[k].name}×${v} <small>(${Save.cardCount(k)})</small></span>`).join('');
+      return `<div class="recipe"><div class="row"><span class="bc-icon">${o.icon}</span><span class="grow"><b>${o.name}</b> <small class="stars">${'★'.repeat(o.rank)}</small></span>
+        <button class="btn small ${Save.canCraft(rid) ? 'purple' : 'gray'}" data-act="potfill" data-arg="${rid}" ${Save.canCraft(rid) ? '' : 'disabled'}>材料を入れる</button></div><div class="mats">${mats}</div></div>`;
+    }).join('');
+    const own = Object.keys(d.cards).sort((a, b) => Object.keys(CARD_KINDS).indexOf(CARDS[a].kind) - Object.keys(CARD_KINDS).indexOf(CARDS[b].kind) || CARDS[a].rank - CARDS[b].rank)
+      .map(id => `<button class="ownchip k-${CARDS[id].kind}" data-act="potadd" data-arg="${id}" ${potLeft(id) > 0 && pot.length < SYNTH_SLOTS ? '' : 'disabled'}>${CARDS[id].icon}<span>${CARDS[id].name}</span><b>${potLeft(id)}</b></button>`).join('');
+    return `<div class="card pot"><div class="pot-title">🧪 合成なべ</div><div class="potslots">${slots.join('')}</div>
+      <div class="potmsg">${potMessage()}</div>
+      <div class="btnrow"><button class="btn purple" data-act="synth" ${pot.length ? '' : 'disabled'}>合成する</button><button class="btn gray" data-act="potclear" ${pot.length ? '' : 'disabled'}>空にする</button></div>
+      <div class="muted small center">合わないときは何も起きません（カードは減りません）</div></div>
+      <div class="card"><h3>手持ちのカード <small class="muted">タップでなべへ</small></h3><div class="ownchips">${own}</div></div>
+      <div class="card"><h3>📜 レシピ帳 <small class="muted">${known.length} / ${rids.length}</small></h3>
+      ${recipes}<div class="muted small center">新しいレシピは宝箱で見つかるほか、いろいろな組み合わせを試すと発見できます</div></div>`;
+  }
+  function doSynth() {
+    const deckBefore = D().deck.length;
+    const r = Save.synth(pot);
+    if (!r.ok) {
+      modal(`<h3>💨 何も起きなかった…</h3><p class="center">${r.near ? 'でも、あと少しで何かできそうな気がする…！<br><small class="muted">材料を足してみよう</small>' : 'この組み合わせではカードはできないようだ。'}</p>
+        <p class="center muted small">カードは減っていません</p><div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`);
+      return;
+    }
+    pot = [];
+    const lost = deckBefore - D().deck.length;
+    modal(`<h3>${r.isNew ? '✨ 新レシピ発見！' : '🧪 合成成功！'}</h3><div class="cgrid one">${cardFace(r.out, true)}</div>
+      <p class="center"><b>${CARDS[r.out].name}</b> ${'★'.repeat(CARDS[r.out].rank)}<br><small>${CARDS[r.out].desc}</small></p>
+      ${lost > 0 ? `<p class="center down small">材料に使ったカードがデッキから${lost}枚外れました</p>` : ''}
+      <div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`, () => cardsPage('synth', null, true));
   }
 
   // ---------- 設定 ----------
@@ -549,7 +610,7 @@ const App = (() => {
     title();
   }
 
-  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, cardsPage, settings, get sortie() { return sortie; } };
+  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, cardsPage, settings, doSynth, get pot() { return pot; }, set pot(v) { pot = v; }, get sortie() { return sortie; } };
 })();
 
 window.addEventListener('DOMContentLoaded', App.init);

@@ -74,6 +74,8 @@ const Save = (() => {
       for (const id in STARTER_CARDS) for (let k = 0; k < STARTER_CARDS[id]; k++) d.deck.push(id);
     }
     if (!d.seen || typeof d.seen !== 'object') d.seen = {};
+    if (!d.recipes || typeof d.recipes !== 'object') d.recipes = {}; // 知っているレシピ
+    for (const id in RECIPES) if (RECIPES[id].known) d.recipes[id] = true;
     for (const id in d.cards) if (!CARDS[id]) delete d.cards[id];
     if (!Array.isArray(d.deck)) d.deck = [];
     fixDeck();
@@ -151,10 +153,12 @@ const Save = (() => {
     if (get.money) d.money += get.money;
     if (get.item && item(get.item)) addItem(get.item);
     if (get.card) addCard(get.card);
+    if (get.recipe && RECIPES[get.recipe]) d.recipes[get.recipe] = true;
   }
   function getLabel(get) {
     if (get.money) return `💰${get.money}`;
     if (get.item) { const it = item(get.item); return it ? (it.kind === 'weapon' ? '🗡 ' : '⚙️ ') + it.name : '？'; }
+    if (get.recipe) return RECIPES[get.recipe] ? `📜 レシピ「${CARDS[RECIPES[get.recipe].out].name}」` : '？';
     if (get.card) return CARDS[get.card] ? `🃏 ${CARDS[get.card].name}${'★'.repeat(CARDS[get.card].rank)}` : '？';
     return '？';
   }
@@ -231,6 +235,44 @@ const Save = (() => {
     return got;
   }
 
+  // ---------- カード合成 ----------
+  // 材料の配列（例: ['hari_dan','hari_dan','hari_dan']）→ 合うレシピID
+  function countList(list) { const n = {}; for (const id of list) n[id] = (n[id] || 0) + 1; return n; }
+  function findRecipe(list) {
+    const n = countList(list);
+    for (const rid in RECIPES) {
+      const r = RECIPES[rid].in;
+      const keys = Object.keys(r);
+      if (keys.length === Object.keys(n).length && keys.every(k => n[k] === r[k])) return rid;
+    }
+    return null;
+  }
+  // 今の材料が、まだ知らないレシピの「途中」になっているか（ヒント用）
+  function nearRecipe(list) {
+    if (!list.length) return false;
+    const n = countList(list);
+    return Object.keys(RECIPES).some(rid => !d.recipes[rid] && Object.keys(n).every(k => (RECIPES[rid].in[k] || 0) >= n[k]));
+  }
+  const canCraft = rid => Object.entries(RECIPES[rid].in).every(([k, v]) => cardCount(k) >= v);
+  // 合成する → { ok, out, recipe, isNew } / 失敗時 { ok: false, near }
+  function synth(list) {
+    const n = countList(list);
+    if (!list.length || Object.keys(n).some(k => cardCount(k) < n[k])) return { ok: false, near: false, lack: true };
+    const rid = findRecipe(list);
+    if (!rid) return { ok: false, near: nearRecipe(list) };
+    for (const k in n) removeCard(k, n[k]);
+    const out = RECIPES[rid].out;
+    addCard(out);
+    const isNew = !d.recipes[rid];
+    d.recipes[rid] = true;
+    d.synthCount = (d.synthCount || 0) + 1;
+    write();
+    return { ok: true, out, recipe: rid, isNew };
+  }
+  function recipeList(rid) {
+    return Object.entries(RECIPES[rid].in).flatMap(([k, v]) => Array(v).fill(k));
+  }
+
   // 戦闘結果（レベル・経験値）をロスターに反映
   function applyBattle(b) {
     for (const u of b.units) {
@@ -247,6 +289,7 @@ const Save = (() => {
     load, write, reset, item, count, addItem, removeItem, canEquip, equipWeapon, equipPart,
     buy, sell, sellPrice, applyBattle, syncRecruits, isDefaultWeapon,
     stageKey, chestsTaken, chestCount, grant, getLabel, takeChest,
+    findRecipe, nearRecipe, canCraft, synth, recipeList,
     cardCount, addCard, removeCard, inDeck, deckLimit, deckAdd, deckRemove, deckClear, autoDeck, buyPack, fixDeck,
     get data() { return d; },
   };

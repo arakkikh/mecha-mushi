@@ -8,7 +8,7 @@
         ok(c.x >= 0 && c.y >= 0 && c.y < st.rows.length && c.x < st.rows[0].length, `S${i + 1} 宝箱が範囲外`);
         ok(!used.has(c.x + ',' + c.y), `S${i + 1} 宝箱がユニットと重なる ${c.x},${c.y}`);
         used.add(c.x + ',' + c.y);
-        ok(c.get && (c.get.money > 0 || Save.item(c.get.item) || CARDS[c.get.card]), `S${i + 1} 宝箱の中身 ${JSON.stringify(c.get)}`);
+        ok(c.get && (c.get.money > 0 || Save.item(c.get.item) || CARDS[c.get.card] || RECIPES[c.get.recipe]), `S${i + 1} 宝箱の中身 ${JSON.stringify(c.get)}`);
       }
       ok((st.chests || []).length >= 2, `S${i + 1} 宝箱2個以上`);
     });
@@ -48,7 +48,7 @@
     // ---- セーブ ----
     Save.reset();
     const d = Save.data;
-    ok(Save.chestCount(STAGES[1]).got === 0 && Save.chestCount(STAGES[1]).total === 4, '宝箱 0/4');
+    ok(Save.chestCount(STAGES[1]).got === 0 && Save.chestCount(STAGES[1]).total === STAGES[1].chests.length, '宝箱 0/全部');
     const m0 = d.money;
     Save.takeChest(STAGES[1], 0, STAGES[1].chests[0].get);
     Save.takeChest(STAGES[1], 1, STAGES[1].chests[1].get);

@@ -392,3 +392,27 @@ button { font-family: inherit; touch-action: manipulation; }
 .cf-name { font-size: 12px; font-weight: 800; line-height: 1.2; }
 .cface .stars { font-size: 11px; }
 .setrow { display: flex; align-items: center; gap: 10px; background: #0f1a2c; border-radius: 12px; padding: 10px; }
+
+/* 合成 */
+.c-gold { color: var(--gold); }
+.pot { background: linear-gradient(180deg, #24183d, #182335); border-color: #5b3f8f; }
+.pot-title { font-weight: 900; text-align: center; margin-bottom: 8px; }
+.potslots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.potslot { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; border: 2px solid var(--kc, #3a475c); background: #101a2c; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-family: inherit; padding: 2px; }
+.potslot span { font-size: 26px; }
+.potslot small { font-size: 10px; font-weight: 800; line-height: 1.15; }
+.potslot i { position: absolute; top: 1px; right: 4px; font-style: normal; color: #ff9a9a; font-weight: 900; }
+.potslot.empty { border-style: dashed; color: #4b5b75; font-size: 22px; }
+.potmsg { text-align: center; min-height: 40px; display: flex; align-items: center; justify-content: center; font-size: 15px; padding: 6px 0; }
+.ownchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ownchip { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-left: 4px solid var(--kc); background: #0f1a2c; color: var(--text);
+  border-radius: 10px; padding: 7px 8px; font-family: inherit; font-size: 13px; font-weight: 700; }
+.ownchip b { color: var(--gold); }
+.ownchip:disabled { opacity: .35; }
+.recipe { border-top: 1px dashed var(--line); padding: 8px 0; }
+.mats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mat { font-size: 12px; border-radius: 8px; padding: 2px 6px; background: #1f2d45; }
+.mat.ok { color: #b9ffcf; } .mat.ng { color: #ff9a9a; }
+.mat small { color: var(--sub); }
+.pot .btnrow { margin-bottom: 8px; }
