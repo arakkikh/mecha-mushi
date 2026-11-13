@@ -319,3 +319,76 @@ button { font-family: inherit; touch-action: manipulation; }
 .btnrow .btn.small { min-width: 0; }
 /* iOS Safariで div のタップ(click)を確実に拾うため */
 .cell, [data-act] { cursor: pointer; }
+
+/* ---------- カード ---------- */
+.btn.purple { background: #8a5cf0; }
+.btn small { font-weight: 600; opacity: .85; font-size: 12px; }
+.bcards { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.bcard, .crow { display: flex; align-items: center; gap: 10px; text-align: left; background: #0f1a2c; border: 1px solid var(--line); border-left: 5px solid var(--kc, #888); border-radius: 12px; padding: 8px 10px; color: var(--text); font-family: inherit; font-size: 15px; }
+.bcard:disabled { opacity: .4; }
+.bcard small, .crow small { color: #c9d6ea; }
+.bc-icon { font-size: 26px; width: 34px; text-align: center; flex: none; }
+.stars { color: var(--gold) !important; letter-spacing: -1px; }
+.k-attack { --kc: #e0504a; } .k-heal { --kc: #3ccf6e; } .k-buff { --kc: #e0a030; } .k-warp { --kc: #8a6cff; } .k-status { --kc: #b05ad0; }
+.cardfx { position: absolute; transform: translate(-50%, -110%); z-index: 6; white-space: nowrap; display: flex; align-items: center; gap: 4px;
+  background: rgba(15,22,40,.92); border: 2px solid var(--kc); border-radius: 10px; padding: 3px 8px; font-size: 13px; animation: cardIn .9s ease-out forwards; }
+.cardfx span { font-size: 18px; } .cardfx small { color: var(--gold); font-weight: 900; }
+@keyframes cardIn { 0% { opacity: 0; transform: translate(-50%, -60%) scale(.6); } 20% { opacity: 1; transform: translate(-50%, -110%) scale(1.1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -150%); } }
+.unit.warping .ubody { animation: warp .32s ease-in-out; }
+@keyframes warp { 50% { transform: scale(.1) rotate(180deg); opacity: .2; filter: hue-rotate(90deg); } }
+.unit.para::after, .unit.poison::after { position: absolute; right: -2px; top: -2px; font-size: calc(var(--cell) * .3); }
+.unit.para::after { content: '💫'; }
+.unit.poison::after { content: '🧪'; }
+.unit.para.poison::after { content: '💫🧪'; }
+.unit.buffed .ubody svg { filter: drop-shadow(0 0 4px #ffd34d); }
+.unit.debuffed .ubody svg { filter: drop-shadow(0 0 4px #c05aff); }
+.sbadges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.sbadge { font-size: 11px; font-weight: 800; padding: 0 5px; border-radius: 6px; }
+.sbadge.good { background: #6a5313; color: #ffe9a8; } .sbadge.bad { background: #5a2470; color: #f1c8ff; }
+
+/* ミニゲーム */
+.minigame { position: absolute; inset: 0; z-index: 40; background: rgba(5,8,15,.78); display: flex; align-items: center; justify-content: center; touch-action: none; }
+.minigame.hidden { display: none; }
+.mg-box { text-align: center; width: 300px; }
+.mg-title { font-size: 22px; font-weight: 900; }
+.mg-hint { color: var(--sub); font-size: 14px; margin: 4px 0 10px; }
+.mg-stage { position: relative; width: 260px; height: 260px; margin: 0 auto; }
+.mg-target { position: absolute; left: 50%; top: 50%; width: 100px; height: 100px; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, #ffe66d 0 30%, #ff8a3d 31% 60%, rgba(255,90,60,.3) 61%); box-shadow: 0 0 0 4px #fff3; }
+.mg-ring { position: absolute; left: 50%; top: 50%; width: 100px; height: 100px; transform: translate(-50%, -50%) scale(2.4); border-radius: 50%; border: 5px solid #7ffcff; box-shadow: 0 0 12px #7ffcff; }
+.mg-judge { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); font-size: 30px; font-weight: 900; opacity: 0; text-shadow: 0 2px 0 #000; }
+.mg-judge.show { animation: judgePop .5s ease-out; }
+@keyframes judgePop { 0% { opacity: 0; transform: translateY(-50%) scale(.5); } 30% { opacity: 1; transform: translateY(-50%) scale(1.2); } 100% { opacity: 0; transform: translateY(-120%); } }
+.mg-judge.perfect { color: var(--gold); } .mg-judge.good { color: #7dffa6; } .mg-judge.miss { color: #aab; }
+.mg-dots { display: flex; justify-content: center; gap: 10px; margin-top: 8px; }
+.mg-dots i { width: 16px; height: 16px; border-radius: 50%; background: #334; }
+.mg-dots i.perfect { background: var(--gold); } .mg-dots i.good { background: #3ccf6e; } .mg-dots i.miss { background: #a33; }
+.mg-result { height: 34px; font-size: 20px; margin-top: 8px; }
+.mg-result b { color: var(--gold); font-size: 26px; }
+
+/* デッキ編集・図鑑 */
+.deckbar { position: sticky; top: -12px; z-index: 3; display: flex; align-items: center; gap: 6px; background: var(--bg); padding: 6px 0; margin: -4px 0 0; }
+.deckcount { flex: 1; font-size: 15px; font-weight: 800; }
+.deckcount b { font-size: 22px; color: #ff9a9a; }
+.deckcount.full b { color: #7dffa6; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--sub); border-radius: 16px; padding: 6px 11px; font-size: 13px; font-weight: 800; font-family: inherit; }
+.chip.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.crow { padding: 8px; }
+.crow.in { background: #15233b; }
+.stepper { display: flex; align-items: center; gap: 2px; flex: none; }
+.stepper button { width: 38px; height: 38px; border-radius: 10px; border: 0; background: #2d4366; color: #fff; font-size: 22px; font-weight: 900; font-family: inherit; }
+.stepper button:disabled { opacity: .3; }
+.stepper b { width: 22px; text-align: center; font-size: 18px; }
+.stepper small { margin-right: 4px; }
+.cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cgrid.one { grid-template-columns: 110px; justify-content: center; margin-bottom: 8px; }
+.cface { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; padding: 6px 4px; text-align: center; color: #fff;
+  background: linear-gradient(170deg, color-mix(in srgb, var(--kc) 70%, #000) 0%, #101a2c 75%); border: 2px solid var(--kc);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.cface.unknown { --kc: #3a475c; background: #141c2b; color: #56647a; }
+.cf-kind { font-size: 10px; font-weight: 800; background: rgba(0,0,0,.35); border-radius: 6px; padding: 0 6px; }
+.cf-icon { font-size: 34px; line-height: 1.2; }
+.cf-name { font-size: 12px; font-weight: 800; line-height: 1.2; }
+.cface .stars { font-size: 11px; }
+.setrow { display: flex; align-items: center; gap: 10px; background: #0f1a2c; border-radius: 12px; padding: 10px; }

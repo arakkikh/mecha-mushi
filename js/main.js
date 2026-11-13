@@ -36,11 +36,13 @@ const App = (() => {
     toast.t = setTimeout(() => el.classList.remove('show'), ms || 1500);
   }
 
-  function page(title, html, onBack, handler) {
+  // keep=true ならスクロール位置を保つ（同じ画面の更新用）
+  function page(title, html, onBack, handler, keep) {
     show('scr-page');
+    const top = $('pageBody').scrollTop;
     $('pageTitle').textContent = title;
     $('pageBody').innerHTML = html;
-    $('pageBody').scrollTop = 0;
+    $('pageBody').scrollTop = keep ? top : 0;
     $('pageMoney').textContent = `💰${D().money}`;
     pageBack = onBack; pageHandler = handler;
   }
@@ -54,8 +56,9 @@ const App = (() => {
       <button class="btn" data-act="story">📖 ストーリー <small>(${Math.min(d.cleared, STAGES.length)}/${STAGES.length})</small></button>
       <button class="btn red" data-act="free">⚔️ フリーバトル</button>
       <button class="btn green" data-act="units">🔧 ユニット・装備</button>
+      <button class="btn purple" data-act="cards">🃏 カード <small>デッキ${d.deck.length}/${DECK_SIZE}</small></button>
       <button class="btn gold" data-act="shop">🛒 ショップ <small>💰${d.money}</small></button>
-      <button class="btn gray small" data-act="help">❓ あそびかた</button>
+      <div class="btnrow"><button class="btn gray small" data-act="help">❓ あそびかた</button><button class="btn gray small" data-act="settings">⚙️ 設定</button></div>
       <button class="btn gray small" data-act="reset">🗑 データを消す</button>`;
     $('titleMenu').onclick = e => {
       const btn = e.target.closest('[data-act]');
@@ -64,6 +67,8 @@ const App = (() => {
       if (a === 'story') storyList();
       else if (a === 'free') freeBattle();
       else if (a === 'units') unitsPage();
+      else if (a === 'cards') cardsPage('deck');
+      else if (a === 'settings') settings(title);
       else if (a === 'shop') shop('weapon');
       else if (a === 'help') help();
       else if (a === 'reset') {
@@ -83,6 +88,7 @@ const App = (() => {
       <p><b>相性</b>：牙 ▶ 甲 ▶ 翅 ▶ 牙（有利だとダメージ1.3倍・命中+15）</p>
       <p><b>地形</b>：森＝回避+20、岩場＝防御+3、水＝飛行ユニットのみ通れる。飛行ユニットは地形の効果を受けません。</p>
       <p>敵をタップすると、その敵が動ける範囲（オレンジ）を確認できます。</p>
+      <p><b>カード</b>：行動メニューの「🃏カード」で、デッキ（20枚）のカードを1枚使えます（使うとそのユニットは行動終了）。各カードは1戦に1回だけ。戦闘が終わると全部戻ります。攻撃カードは必ず命中・反撃なし。輪が重なった瞬間にタップするミニゲームで威力が0.6〜1.5倍に変わります（設定でオフにすると常に1.0倍）。</p>
       <p><b>宝箱</b>：🎁のマスで行動を終えると開きます。中身はお金・武器・パーツなど。<b>敵が先に止まると取られてしまう</b>ので急ごう！ 取った宝箱は記録され、ステージ選択に「宝箱 2/3」のように表示されます。</p>
       </div><div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`);
   }
@@ -115,7 +121,7 @@ const App = (() => {
   function stageIntro(i) {
     const st = STAGES[i];
     const first = i >= D().cleared;
-    const items = first && st.reward.items ? st.reward.items.map(id => Save.item(id).name).join('・') : '';
+    const items = first ? (st.reward.items || []).map(id => Save.item(id).name).concat((st.reward.cards || []).map(id => '🃏' + CARDS[id].name)).join('・') : '';
     modal(`<h3>STAGE ${i + 1}<br>${st.name}</h3>
       <div class="story">${st.story.replace(/\n/g, '<br>')}</div>
       <div class="muted">敵の編成</div>${enemyIcons(st.enemies)}
@@ -149,6 +155,7 @@ const App = (() => {
           <button class="btn small gray" data-act="equip" data-arg="${u.id}">装備</button></div>`;
       }).join('') +
       `<div class="muted">敵の編成</div>${enemyIcons(cfg.enemies)}
+      <button class="slot" data-act="deck"><span class="slot-k">デッキ</span><span class="grow"><b>🃏 ${d.deck.length}/${DECK_SIZE}枚</b>${d.deck.length < DECK_SIZE ? ' <small class="down">（まだ入れられます）</small>' : ''}<br><small>${deckSummary()}</small></span><span class="chev">›</span></button>
       <button class="btn red big" data-act="go" ${sortie.length ? '' : 'disabled'}>⚔️ 出撃！（${sortie.length}体）</button>`;
     page('出撃準備', html, cfg.back, (a, arg) => {
       const id = Number(arg);
@@ -159,8 +166,14 @@ const App = (() => {
         else toast(`出撃できるのは${slots}体までです`);
         prep(cfg);
       }
+      if (a === 'deck') cardsPage('deck', () => prep(cfg));
       if (a === 'go') startBattle(cfg);
     });
+  }
+  function deckSummary() {
+    const n = {};
+    for (const id of D().deck) n[CARDS[id].kind] = (n[CARDS[id].kind] || 0) + 1;
+    return Object.keys(CARD_KINDS).filter(k => n[k]).map(k => `${CARD_KINDS[k].icon}${CARD_KINDS[k].name}${n[k]}`).join(' ') || 'カードが入っていません';
   }
 
   // ---------- 戦闘 ----------
@@ -174,6 +187,8 @@ const App = (() => {
       chestsTaken: Save.chestsTaken(cfg.stage),
       onChest: ev => { Save.takeChest(cfg.stage, ev.idx, ev.get); got.push(ev.get); },
     } : { noChests: true };
+    extra.deck = D().deck.slice();
+    extra.minigame = D().settings.minigame;
     BattleUI.start(cfg.stage, party, cfg.enemies, (r, b) => onBattleEnd(cfg, r, b, before, got), extra);
   }
 
@@ -187,24 +202,27 @@ const App = (() => {
     if (stolen) lines.push(`<div class="reward"><span>宝箱</span><b class="down">敵に${stolen}個取られた…</b></div>`);
     let recruits = [];
     if (r === 'win') {
-      let money = 0, items = [];
+      let money = 0, items = [], cards = [];
       if (cfg.mode === 'story') {
         const first = cfg.index >= d.cleared;
         money = first ? cfg.stage.reward.money : Math.floor(cfg.stage.reward.money / 2);
         if (first) {
           items = (cfg.stage.reward.items || []).slice();
+          cards = (cfg.stage.reward.cards || []).slice();
           d.cleared = cfg.index + 1;
           recruits = Save.syncRecruits();
         }
       } else {
         money = cfg.reward.money;
         items = cfg.reward.items;
+        cards = cfg.reward.cards || [];
         d.freeWins = (d.freeWins || 0) + 1;
       }
       d.money += money;
       for (const id of items) Save.addItem(id);
       lines.push(`<div class="reward"><span>お金</span><b>💰 +${money}</b></div>`);
       for (const id of items) lines.push(`<div class="reward"><span>入手</span><b>🎁 ${Save.item(id).name}</b></div>`);
+      for (const id of cards) { Save.addCard(id); lines.push(`<div class="reward"><span>カード</span><b>${Save.getLabel({ card: id })}</b></div>`); }
     }
     for (const u of d.roster) {
       if (before.has(u.id) && u.lv > before.get(u.id)) {
@@ -275,7 +293,9 @@ const App = (() => {
     const money = Math.round((60 + lvSum * 25) * df.mult / 10) * 10;
     const shopItems = Object.keys(WEAPONS).filter(id => WEAPONS[id].price > 0).concat(Object.keys(PARTS));
     const items = Math.random() < df.drop ? [pick(shopItems)] : [];
-    return { stage, enemies, mode: 'free', reward: { money, items }, back: freeBattle };
+    const pool = Object.keys(CARDS).filter(id => !CARDS[id].only && CARDS[id].rank <= Math.min(3, 1 + Math.floor(freeSel.diff / 1.5)));
+    const cards = Math.random() < df.drop ? [pick(pool)] : [];
+    return { stage, enemies, mode: 'free', reward: { money, items, cards }, back: freeBattle };
   }
 
   function freeBattle() {
@@ -394,10 +414,82 @@ const App = (() => {
     });
   }
 
+  // ---------- カード（デッキ編集・図鑑） ----------
+  let cardFilter = 'all';
+  let cardsBack = null;
+  function cardFace(id, known) {
+    const c = CARDS[id];
+    if (!known) return `<div class="cface unknown"><div class="cf-icon">？</div><div class="cf-name">？？？</div><div class="stars">${'★'.repeat(c.rank)}</div></div>`;
+    return `<div class="cface k-${c.kind}" data-act="cinfo" data-arg="${id}"><div class="cf-kind">${CARD_KINDS[c.kind].name}</div><div class="cf-icon">${c.icon}</div>
+      <div class="cf-name">${c.name}</div><div class="stars">${'★'.repeat(c.rank)}</div></div>`;
+  }
+  function cardSpecText(c) {
+    const r = c.self ? '自分中心' : c.range >= 99 ? '射程∞' : '射程' + c.range;
+    return [CARD_KINDS[c.kind].name, r, c.area ? '範囲' + c.area : '', c.pow ? '威力' + c.pow : '', c.heal ? '回復' + (c.heal >= 999 ? '全' : c.heal) : ''].filter(Boolean).join('・');
+  }
+  function cardInfo(id) {
+    const c = CARDS[id];
+    modal(`<div class="cgrid one">${cardFace(id, true)}</div><h3>${c.name}</h3>
+      <div class="center">${cardSpecText(c)}</div><p class="center">${c.desc}</p>
+      <div class="center muted">所持 ${Save.cardCount(id)}枚 / デッキに${Save.inDeck(id)}枚${c.only === 'synth' ? '<br>※合成でしか作れない' : c.only === 'wild' ? '<br>※荒野の宝箱でしか見つからない' : ''}</div>
+      <div class="btnrow"><button class="btn" data-act="ok">閉じる</button></div>`);
+  }
+  function cardTabs(tab) {
+    return `<div class="tabs">${[['deck', 'デッキ編集'], ['book', '図鑑']].map(([k, n]) => `<button class="tab ${tab === k ? 'on' : ''}" data-act="ctab" data-arg="${k}">${n}</button>`).join('')}</div>`;
+  }
+  function cardsPage(tab, back, keep) {
+    if (back) cardsBack = back;
+    if (!back && !keep) cardsBack = title;
+    const d = D();
+    let html = cardTabs(tab);
+    if (tab === 'deck') {
+      const kinds = [['all', 'すべて']].concat(Object.keys(CARD_KINDS).map(k => [k, CARD_KINDS[k].icon + CARD_KINDS[k].name]));
+      const ids = Object.keys(d.cards).filter(id => cardFilter === 'all' || CARDS[id].kind === cardFilter)
+        .sort((a, b) => Object.keys(CARD_KINDS).indexOf(CARDS[a].kind) - Object.keys(CARD_KINDS).indexOf(CARDS[b].kind) || CARDS[a].rank - CARDS[b].rank);
+      html += `<div class="deckbar"><div class="deckcount ${d.deck.length === DECK_SIZE ? 'full' : ''}">デッキ <b>${d.deck.length}</b>/${DECK_SIZE}</div>
+        <button class="btn small" data-act="auto">おまかせ</button><button class="btn small gray" data-act="clear">全部外す</button></div>
+        <div class="muted small center">${deckSummary()}</div>
+        <div class="chips">${kinds.map(([k, n]) => `<button class="chip ${cardFilter === k ? 'on' : ''}" data-act="filter" data-arg="${k}">${n}</button>`).join('')}</div>` +
+        ids.map(id => {
+          const c = CARDS[id], n = Save.inDeck(id), lim = Save.deckLimit(id);
+          return `<div class="crow k-${c.kind} ${n ? 'in' : ''}"><span class="bc-icon" data-act="cinfo" data-arg="${id}">${c.icon}</span>
+            <span class="grow" data-act="cinfo" data-arg="${id}"><b>${c.name}</b> <small class="stars">${'★'.repeat(c.rank)}</small><br><small>${cardSpecText(c)}</small><br><small class="muted">${c.desc}</small></span>
+            <span class="stepper"><button data-act="minus" data-arg="${id}" ${n ? '' : 'disabled'}>−</button><b>${n}</b><small>/${lim}</small>
+            <button data-act="plus" data-arg="${id}" ${n < lim && d.deck.length < DECK_SIZE ? '' : 'disabled'}>＋</button></span></div>`;
+        }).join('') + `<div class="muted center small">同じカードは${DECK_MAX_SAME}枚まで（持っている枚数まで）入れられます</div>`;
+    } else {
+      const all = Object.keys(CARDS);
+      const seen = all.filter(id => d.seen[id]).length;
+      html += `<div class="card center">見つけたカード <b>${seen}</b> / ${all.length}</div>
+        <div class="cgrid">${all.map(id => cardFace(id, d.seen[id])).join('')}</div>`;
+    }
+    page('カード', html, cardsBack, (a, arg) => {
+      if (a === 'ctab') cardsPage(arg, null, true);
+      else if (a === 'filter') { cardFilter = arg; cardsPage('deck', null, true); }
+      else if (a === 'plus') { Save.deckAdd(arg); cardsPage('deck', null, true); }
+      else if (a === 'minus') { Save.deckRemove(arg); cardsPage('deck', null, true); }
+      else if (a === 'auto') { Save.autoDeck(); toast('おまかせでデッキを組みました'); cardsPage('deck', null, true); }
+      else if (a === 'clear') { Save.deckClear(); cardsPage('deck', null, true); }
+      else if (a === 'cinfo') cardInfo(arg);
+    }, keep);
+  }
+
+  // ---------- 設定 ----------
+  function settings(back) {
+    const st = D().settings;
+    modal(`<h3>⚙️ 設定</h3>
+      <div class="setrow"><div class="grow"><b>攻撃カードのミニゲーム</b><div class="muted">オフにすると威力はいつも1.0倍</div></div>
+      <button class="btn small ${st.minigame ? 'green' : 'gray'}" data-act="mg">${st.minigame ? 'オン' : 'オフ'}</button></div>
+      <div class="btnrow"><button class="btn gray" data-act="close">閉じる</button></div>`, act => {
+      if (act === 'mg') { st.minigame = !st.minigame; Save.write(); settings(back); }
+      else if (back) back();
+    });
+  }
+
   // ---------- ショップ ----------
   function shop(tab) {
     const d = D();
-    const tabs = [['weapon', '武器'], ['part', 'パーツ'], ['sell', '売る']].map(([k, n]) =>
+    const tabs = [['weapon', '武器'], ['part', 'パーツ'], ['card', 'カード'], ['sell', '売る']].map(([k, n]) =>
       `<button class="tab ${tab === k ? 'on' : ''}" data-act="tab" data-arg="${k}">${n}</button>`).join('');
     let list = '';
     if (tab === 'weapon' || tab === 'part') {
@@ -410,6 +502,13 @@ const App = (() => {
           ${tab === 'weapon' ? `<div class="muted small">${it.desc}／装備：${who}</div>` : ''}</div>
           <button class="btn small gold" data-act="buy" data-arg="${id}" ${d.money < it.price ? 'disabled' : ''}>💰${it.price}</button></div>`;
       }).join('');
+    } else if (tab === 'card') {
+      list = CARD_PACKS.map(pk => {
+        const locked = pk.unlock && d.cleared < pk.unlock;
+        return `<div class="item"><div class="grow"><b>🃏 ${pk.name}</b> <small class="muted">${pk.count}枚入り</small>
+          <div class="muted">${locked ? `ストーリー${pk.unlock}ステージクリアで解放` : pk.desc}</div></div>
+          <button class="btn small gold" data-act="pack" data-arg="${pk.id}" ${locked || d.money < pk.price ? 'disabled' : ''}>💰${pk.price}</button></div>`;
+      }).join('') + '<div class="muted center">★4のカードはパックからは出ません（合成で作ろう）</div>';
     } else {
       const ids = Object.keys(d.inv).filter(id => d.inv[id] > 0);
       list = ids.length ? ids.map(id => {
@@ -422,7 +521,13 @@ const App = (() => {
       if (a === 'tab') shop(arg);
       else if (a === 'buy') { if (Save.buy(arg)) toast(`${Save.item(arg).name} を買った！`); shop(tab); }
       else if (a === 'sell') { if (Save.sell(arg)) toast(`${Save.item(arg).name} を売った`); shop(tab); }
-    });
+      else if (a === 'pack') {
+        const got = Save.buyPack(arg);
+        if (!got) return;
+        modal(`<h3>🃏 パックを開けた！</h3><div class="cgrid">${got.map(id => cardFace(id, true)).join('')}</div>
+          <div class="btnrow"><button class="btn" data-act="ok">OK</button></div>`, () => shop('card'));
+      }
+    }, true);
   }
 
   // ---------- 初期化 ----------
@@ -438,12 +543,13 @@ const App = (() => {
     });
     $('btnMenu').onclick = () => modal(`<h3>メニュー</h3>
       <div class="btnrow"><button class="btn" data-act="help">あそびかた</button></div>
+      <div class="muted center">ミニゲームの設定はタイトルの「⚙️設定」で変えられます<br>（次の戦闘から反映）</div>
       <div class="btnrow"><button class="btn gray" data-act="close">続ける</button><button class="btn red" data-act="quit">あきらめる</button></div>`,
     act => { if (act === 'help') help(); if (act === 'quit') title(); });
     title();
   }
 
-  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, get sortie() { return sortie; } };
+  return { init, show, modal, title, storyList, freeBattle, unitsPage, shop, prep, stageIntro, unitDetail, makeFreeCfg, cardsPage, settings, get sortie() { return sortie; } };
 })();
 
 window.addEventListener('DOMContentLoaded', App.init);

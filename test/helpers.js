@@ -13,9 +13,11 @@ async function waitIdle() {
   throw new Error('待機タイムアウト mode=' + BattleUI.mode);
 }
 
-async function autoPlay(stage, party, enemies) {
+// extra.deck を渡すとCPUもカードを使う（cardMin: この点数以上ならカードを使う）
+async function autoPlay(stage, party, enemies, extra) {
   let endResult = null;
-  BattleUI.start(stage, party, enemies, r => { endResult = r; });
+  const cardMin = (extra && extra.cardMin) || 14;
+  BattleUI.start(stage, party, enemies, r => { endResult = r; }, extra);
   const b = BattleUI.state;
   let guard = 0;
   while (!endResult && guard++ < 80) {
@@ -29,7 +31,15 @@ async function autoPlay(stage, party, enemies) {
       if (plan.to.x !== u.x || plan.to.y !== u.y) await BattleUI.tapCell(plan.to.x, plan.to.y);
       else BattleUI.tapCell(u.x, u.y);
       ok(BattleUI.mode === 'moved', '移動後メニュー mode=' + BattleUI.mode);
-      if (plan.action && plan.action.type === 'attack') {
+      const cp = Engine.planCard(b, u);
+      if (cp && cp.score >= cardMin) {
+        pressSheet('card');
+        pressSheet('pick', String(cp.deckIdx));
+        if (!CARDS[cp.id].self) await BattleUI.tapCell(cp.x, cp.y);
+        ok(sheetHtml().includes('使う！'), 'カード確認表示');
+        pressSheet('use');
+        autoPlay.cardsUsed = (autoPlay.cardsUsed || 0) + 1;
+      } else if (plan.action && plan.action.type === 'attack') {
         pressSheet('attack');
         await BattleUI.tapCell(plan.action.target.x, plan.action.target.y);
         ok(sheetHtml().includes('命中率'), '予測表示');

@@ -12,10 +12,11 @@ const BattleUI = (() => {
   let sel = null;        // 選択中ユニット
   let reach = null;      // 移動範囲
   let origin = null;     // 移動前の位置
+  let cardSel = null;    // 選択中のカード { deckIdx, id, tiles }
   const unitEls = new Map();
   const chestEls = new Map();
 
-  // extra: { chestsTaken, noChests, onChest(ev) }
+  // extra: { chestsTaken, noChests, onChest(ev), deck: [カードID], minigame: true/false }
   function start(stage, playerSpecs, enemySpecs, onEnd, extra) {
     opts = Object.assign({ stage, onEnd }, extra || {});
     b = E.createBattle(stage, playerSpecs, enemySpecs, extra);
@@ -83,6 +84,10 @@ const BattleUI = (() => {
       }
       placeEl(el, u.x, u.y);
       el.classList.toggle('acted', u.acted && u.side === b.phase);
+      el.classList.toggle('para', u.st.para > 0);
+      el.classList.toggle('poison', !!u.st.poison);
+      el.classList.toggle('buffed', u.buffs.some(x => x.v > 0));
+      el.classList.toggle('debuffed', u.buffs.some(x => x.v < 0));
       el.classList.toggle('dead', u.hp <= 0);
       updateHp(u);
     }
@@ -133,6 +138,12 @@ const BattleUI = (() => {
     const u = E.unitAt(b, x, y);
 
     if (mode === 'moved') return; // メニュー表示中は盤面操作しない
+
+    if (mode === 'card') {
+      if (cardSel.tiles.some(p => p.x === x && p.y === y)) confirmCard(x, y);
+      else { clearMarks(); hideSheet(); mode = 'moved'; showCardList(); }
+      return;
+    }
 
     if (mode === 'target' || mode === 'heal') {
       const list = mode === 'target' ? E.targetsFrom(b, sel, sel.x, sel.y) : E.healTargetsFrom(b, sel, sel.x, sel.y);
@@ -209,6 +220,8 @@ const BattleUI = (() => {
     html.push(`<div class="sheet-title">${sel.name} の行動</div><div class="btnrow">`);
     html.push(`<button class="btn red" data-act="attack" ${targets.length ? '' : 'disabled'}>⚔️ 攻撃</button>`);
     if (sel.heal) html.push(`<button class="btn green" data-act="heal" ${heals.length ? '' : 'disabled'}>💚 回復</button>`);
+    const left = b.deck.filter(c => !c.used).length;
+    if (b.deck.length) html.push(`<button class="btn purple" data-act="card" ${left ? '' : 'disabled'}>🃏 カード <small>${left}</small></button>`);
     html.push(`<button class="btn" data-act="wait">⏸ 待機</button>`);
     html.push(`<button class="btn gray" data-act="cancel">↩ 戻る</button></div>`);
     showSheet(html.join(''), act => {
@@ -220,6 +233,8 @@ const BattleUI = (() => {
         mode = 'heal'; hideSheet(); clearMarks();
         for (const t of heals) cellEl(t.x, t.y).classList.add('heal');
         toast('回復する味方をタップ');
+      } else if (act === 'card') {
+        showCardList();
       } else if (act === 'wait') {
         finishUnit(sel);
       } else if (act === 'cancel') {
@@ -229,6 +244,80 @@ const BattleUI = (() => {
         hideSheet(); clearMarks();
         select(u);
       }
+    });
+  }
+
+  // ---------- カード ----------
+  function cardSpec(c) {
+    const k = CARD_KINDS[c.kind];
+    const r = c.self ? '自分中心' : c.range >= 99 ? '射程∞' : '射程' + c.range;
+    const a = c.area ? `・範囲${c.area}` : '';
+    const v = c.pow ? `・威力${c.pow}` : c.heal ? `・回復${c.heal >= 999 ? '全' : c.heal}` : '';
+    return `${k.name}・${r}${a}${v}`;
+  }
+  function showCardList() {
+    // 残っているカードを種類ごとにまとめる
+    const groups = new Map();
+    for (const slot of b.deck) {
+      if (slot.used) continue;
+      if (!groups.has(slot.id)) groups.set(slot.id, []);
+      groups.get(slot.id).push(slot.i);
+    }
+    const rows = [...groups].sort((a, b2) => Object.keys(CARD_KINDS).indexOf(CARDS[a[0]].kind) - Object.keys(CARD_KINDS).indexOf(CARDS[b2[0]].kind)).map(([id, idxs]) => {
+      const c = CARDS[id];
+      const ok = E.cardTiles(b, sel, id).length > 0;
+      return `<button class="bcard k-${c.kind}" data-act="pick" data-arg="${idxs[0]}" ${ok ? '' : 'disabled'}>
+        <span class="bc-icon">${c.icon}</span><span class="grow"><b>${c.name}</b> <small class="stars">${'★'.repeat(c.rank)}</small> ${idxs.length > 1 ? `<small>×${idxs.length}</small>` : ''}
+        <br><small>${cardSpec(c)}</small><br><small class="muted">${ok ? c.desc : 'ここからは使えない'}</small></span></button>`;
+    }).join('');
+    showSheet(`<div class="sheet-title">🃏 カードを使う <small class="muted">（1戦で1回ずつ・残り${b.deck.filter(c => !c.used).length}枚）</small></div>
+      <div class="bcards">${rows || '<div class="muted center">カードが残っていません</div>'}</div>
+      <div class="btnrow"><button class="btn gray" data-act="back">↩ 戻る</button></div>`, (act, arg) => {
+      if (act === 'back') { showActionMenu(); return; }
+      if (act === 'pick') pickCard(Number(arg));
+    });
+  }
+  function pickCard(deckIdx) {
+    const id = b.deck[deckIdx].id;
+    const c = CARDS[id];
+    cardSel = { deckIdx, id, tiles: E.cardTiles(b, sel, id) };
+    if (c.self) { confirmCard(sel.x, sel.y); return; }
+    hideSheet(); clearMarks();
+    mode = 'card';
+    cellEl(sel.x, sel.y).classList.add('cur');
+    for (const p of cardSel.tiles) cellEl(p.x, p.y).classList.add(c.kind === 'heal' || c.kind === 'buff' ? 'heal' : c.kind === 'warp' ? 'mv' : 'tgt');
+    toast(c.kind === 'warp' ? '移動先をタップ' : c.area ? '中心のマスをタップ' : '使う相手をタップ');
+  }
+  function confirmCard(x, y) {
+    const c = CARDS[cardSel.id];
+    mode = 'moved';
+    clearMarks();
+    const ts = E.cardAffected(b, sel, c, x, y);
+    // 範囲を表示
+    if (c.area) for (let yy = 0; yy < b.h; yy++) for (let xx = 0; xx < b.w; xx++) if (E.dist(x, y, xx, yy) <= c.area) cellEl(xx, yy).classList.add('atk');
+    for (const t of ts) cellEl(t.x, t.y).classList.add('tgt');
+    if (c.kind === 'warp') cellEl(x, y).classList.add('mv');
+    let info = '';
+    if (c.kind === 'attack') {
+      info = ts.map(t => {
+        const lo = E.cardDamage(b, sel, t, c, 0.6), mid = E.cardDamage(b, sel, t, c, 1), hi = E.cardDamage(b, sel, t, c, 1.5);
+        return `<div class="fc-row"><span>${t.name} <small>HP${t.hp}</small></span><b>${opts.minigame ? `${lo}〜${hi}` : mid}${mid >= t.hp ? ' 💀' : ''}</b></div>`;
+      }).join('') + (opts.minigame ? '<div class="muted center small">ミニゲームの成功度で威力が変わる（必ず命中・反撃なし）</div>' : '<div class="muted center small">必ず命中・反撃なし</div>');
+    } else if (ts.length) {
+      info = `<div class="muted center">対象：${ts.map(t => t.name).join('・')}</div>`;
+    }
+    showSheet(`<div class="sheet-title">${c.icon} ${c.name}</div><div class="muted center">${c.desc}</div>${info}
+      <div class="btnrow"><button class="btn purple big" data-act="use">使う！</button><button class="btn gray" data-act="back">やめる</button></div>`, async act => {
+      if (act !== 'use') { clearMarks(); showCardList(); return; }
+      hideSheet(); clearMarks();
+      mode = 'busy';
+      let mult = 1;
+      if (c.kind === 'attack' && opts.minigame) mult = MiniGame.mult(await MiniGame.play(c));
+      const u = sel;
+      const ev = E.useCard(b, u, cardSel.deckIdx, x, y, mult);
+      cardSel = null;
+      await playEvents(ev);
+      finishUnit(u);
     });
   }
 
@@ -314,6 +403,9 @@ const BattleUI = (() => {
       if (ev.kind === 'strike') await animStrike(ev);
       else if (ev.kind === 'heal') await animHeal(ev);
       else if (ev.kind === 'levelup') await animLevelUp(ev);
+      else if (ev.kind === 'card') await animCard(ev);
+      else if (ev.kind === 'warp') await animWarp(ev);
+      else await animStatus(ev);
     }
     renderUnits();
   }
@@ -346,6 +438,41 @@ const BattleUI = (() => {
       await wait(500);
       del.classList.add('dead');
     }
+  }
+
+  async function animCard(ev) {
+    const u = E.byUid(b, ev.uid), c = CARDS[ev.id];
+    const p = document.createElement('div');
+    p.className = 'cardfx k-' + c.kind;
+    p.innerHTML = `<span>${c.icon}</span><b>${c.name}</b>${ev.mult !== 1 ? `<small>×${ev.mult.toFixed(1)}</small>` : ''}`;
+    p.style.left = `calc(${u.x + 0.5} * var(--cell))`;
+    p.style.top = `calc(${u.y} * var(--cell))`;
+    $('fxLayer').appendChild(p);
+    setTimeout(() => p.remove(), 900);
+    await wait(450);
+  }
+  async function animWarp(ev) {
+    const u = E.byUid(b, ev.uid);
+    const el = unitEls.get(u.uid);
+    el.classList.add('warping');
+    await wait(200);
+    placeEl(el, ev.x, ev.y);
+    await wait(120);
+    el.classList.remove('warping');
+    await wait(200);
+  }
+  const STATUS_TEXT = { para: 'マヒ!', poison: '毒!' };
+  async function animStatus(ev) {
+    const t = E.byUid(b, ev.def);
+    if (!t) return;
+    if (ev.kind === 'buff') popText(t, `${BUFF_NAMES[ev.k]}${ev.v > 0 ? '+' : ''}${ev.v}`, ev.v > 0 ? 'lvup' : 'kill');
+    else if (ev.kind === 'status') popText(t, STATUS_TEXT[ev.s], 'kill');
+    else if (ev.kind === 'resist') popText(t, '効かない!', 'miss');
+    else if (ev.kind === 'poison') { popText(t, '毒 -' + ev.dmg, 'dmg'); updateHp(t); }
+    else if (ev.kind === 'para') popText(t, 'マヒで動けない', 'miss');
+    else if (ev.kind === 'buffend') { popText(t, BUFF_NAMES[ev.k] + ' 元に戻った', 'miss'); }
+    else return;
+    await wait(SPEED.pause + 150);
   }
 
   function shot(a, d) {
@@ -410,10 +537,18 @@ const BattleUI = (() => {
     s.classList.remove('hidden');
     s.onclick = e => {
       const btn = e.target.closest ? e.target.closest('[data-act]') : null;
-      if (btn && !btn.disabled) onAct(btn.dataset.act);
+      if (btn && !btn.disabled) onAct(btn.dataset.act, btn.dataset.arg);
     };
   }
   function hideSheet() { const s = $('sheet'); s.classList.add('hidden'); s.onclick = null; }
+
+  function statusBadges(u) {
+    const out = [];
+    if (u.st.para) out.push('<span class="sbadge bad">マヒ</span>');
+    if (u.st.poison) out.push(`<span class="sbadge bad">毒${u.st.poison.dmg}×${u.st.poison.t}</span>`);
+    for (const bf of u.buffs) out.push(`<span class="sbadge ${bf.v > 0 ? 'good' : 'bad'}">${BUFF_NAMES[bf.k]}${bf.v > 0 ? '+' : ''}${bf.v}（${bf.t}）</span>`);
+    return out.length ? `<div class="sbadges">${out.join('')}</div>` : '';
+  }
 
   // ---------- 情報パネル ----------
   function showInfo(u, x, y) {
@@ -424,7 +559,8 @@ const BattleUI = (() => {
       t = `<div class="terrain">地形：<b>${tr.name}</b> 防御+${tr.def} 回避+${tr.avo}${E.chestAt(b, x, y) ? '　🎁<b>宝箱</b>（止まると開く）' : ''}</div>`;
     }
     if (!u) {
-      el.innerHTML = t || `<div class="hint">${b.phase === 'player' ? 'ユニットをタップして選択' : '敵が行動中…'}</div>`;
+      const left = b.deck.filter(c => !c.used).length;
+      el.innerHTML = t || `<div class="hint">${b.phase === 'player' ? 'ユニットをタップして選択' : '敵が行動中…'}${b.deck.length ? `<br><small>🃏 カード残り ${left}/${b.deck.length}枚</small>` : ''}</div>`;
       return;
     }
     const ty = TYPES[u.type];
@@ -434,6 +570,7 @@ const BattleUI = (() => {
         <div class="info-name">${u.name} <small>Lv${u.lv}${u.side === 'player' ? ` EXP${u.exp}` : ''}</small> <span class="tybadge" style="background:${ty.color}">${ty.name}</span></div>
         <div class="info-hp"><div class="bar"><i style="width:${u.hp / u.maxhp * 100}%"></i></div>${u.hp}/${u.maxhp}</div>
         <div class="info-stats">攻${u.atk} 防${u.def} 移${u.mov} 射${u.rmin === u.rmax ? u.rmin : u.rmin + '-' + u.rmax} ${MOVE_NAMES[u.move]}${u.heal ? ' 回復' + u.heal : ''}</div>
+        ${statusBadges(u)}
       </div></div>${t}`;
   }
 
@@ -454,7 +591,7 @@ const BattleUI = (() => {
   async function enemyPhase() {
     const enemies = E.alive(b, 'enemy').slice();
     for (const u of enemies) {
-      if (u.hp <= 0) continue;
+      if (u.hp <= 0 || u.acted) continue; // マヒ中は行動しない
       const plan = E.planAI(b, u);
       showInfo(u, u.x, u.y);
       cellEl(u.x, u.y).classList.add('cur');

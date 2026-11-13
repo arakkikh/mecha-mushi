@@ -45,14 +45,14 @@
   })();
   g.console = g.console || { log: print };
   // 下部シート/モーダルのボタンを押す
-  g.pressSheet = act => {
+  g.pressSheet = (act, arg) => {
     const s = document.getElementById('sheet');
     if (!s.onclick) throw new Error('シートが開いていない: ' + act);
-    s.onclick({ target: { closest: () => ({ dataset: { act }, disabled: false }) } });
+    s.onclick({ target: { closest: () => ({ dataset: { act, arg }, disabled: false }) } });
   };
-  g.pressModal = act => {
+  g.pressModal = (act, arg) => {
     const s = document.getElementById('modalBox');
-    s.onclick({ target: { closest: () => ({ dataset: { act }, disabled: false }) } });
+    s.onclick({ target: { closest: () => ({ dataset: { act, arg }, disabled: false }) } });
   };
   g.sheetHtml = () => document.getElementById('sheet')._html;
   g.sleep = () => new Promise(r => realST(r, 0));

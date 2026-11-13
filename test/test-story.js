@@ -40,7 +40,8 @@ function autoShop() {
     for (let run = 0; run < RUNS; run++) {
       Save.reset();
       const d = Save.data;
-      let total = 0;
+      let total = 0, chestN = 0;
+      autoPlay.cardsUsed = 0;
       const log = [];
       for (let i = 0; i < STAGES.length; i++) {
         let tries = 0, won = false;
@@ -48,12 +49,17 @@ function autoShop() {
           tries++;
           autoShop(); autoEquip();
           const party = d.roster.slice(0, STAGES[i].start.length);
-          const r = await autoPlay(STAGES[i], party, STAGES[i].enemies);
+          Save.autoDeck();
+          const r = await autoPlay(STAGES[i], party, STAGES[i].enemies, {
+            deck: d.deck.slice(), chestsTaken: Save.chestsTaken(STAGES[i]),
+            onChest: ev => { Save.takeChest(STAGES[i], ev.idx, ev.get); chestN++; },
+          });
           Save.applyBattle(r.b);
           if (r.result === 'win') {
             won = true;
             d.money += STAGES[i].reward.money;
             for (const id of STAGES[i].reward.items) Save.addItem(id);
+            for (const id of STAGES[i].reward.cards || []) Save.addCard(id);
             d.cleared = i + 1;
             Save.syncRecruits();
           }
@@ -63,7 +69,7 @@ function autoShop() {
         log.push(`S${i + 1}:${won ? tries + '回' : '断念'}(Lv ${lvs})`);
         if (!won) break;
       }
-      print(`  通し${run + 1}: ` + log.join(' '));
+      print(`  通し${run + 1}: ` + log.join(' ') + ` ／宝箱${chestN}個・カード${autoPlay.cardsUsed}枚使用`);
     }
     // フリーバトル設定の生成
     for (let k = 0; k < 20; k++) {

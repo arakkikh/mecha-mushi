@@ -115,7 +115,7 @@ const RECRUITS = [
 
 // ステージ（マップ 8×10）。G=草地 F=森 R=岩場 W=水
 // start=味方の出撃位置, enemies=敵配置（ai: aggressive=突撃 / hold=待ち伏せ / boss=動かない / thief=宝箱どろぼう）
-// chests=宝箱（get: { money: 数 } / { item: 武器・パーツID }）。取得記録は配列の順番で保存するので、追加は末尾へ
+// chests=宝箱（get: { money: 数 } / { item: 武器・パーツID } / { card: カードID }）。取得記録は配列の順番で保存するので、追加は末尾へ
 
 const STAGES = [
   {
@@ -126,8 +126,8 @@ const STAGES = [
     enemies: [
       { cls: 'ari', lv: 1, x: 2, y: 1 }, { cls: 'ari', lv: 1, x: 5, y: 1 }, { cls: 'kuwagata', lv: 1, x: 4, y: 0 },
     ],
-    reward: { money: 300, items: ['energy_cell'] },
-    chests: [{ x: 7, y: 7, get: { money: 150 } }, { x: 0, y: 0, get: { item: 'armor_plate' } }],
+    reward: { money: 300, items: ['energy_cell'], cards: ['mitsu'] },
+    chests: [{ x: 7, y: 7, get: { money: 150 } }, { x: 0, y: 0, get: { item: 'armor_plate' } }, { x: 3, y: 5, get: { card: 'hari_dan' } }],
   },
   {
     id: 2, name: '森のこみち',
@@ -137,8 +137,8 @@ const STAGES = [
     enemies: [
       { cls: 'ari', lv: 2, x: 1, y: 1 }, { cls: 'ari', lv: 2, x: 6, y: 2, ai: 'thief' }, { cls: 'ga', lv: 2, x: 3, y: 0 }, { cls: 'kabuto', lv: 2, x: 5, y: 0 },
     ],
-    reward: { money: 400, items: ['power_motor'] },
-    chests: [{ x: 0, y: 4, get: { money: 200 } }, { x: 7, y: 1, get: { item: 'energy_cell' } }, { x: 6, y: 0, get: { item: 'lockon' } }],
+    reward: { money: 400, items: ['power_motor'], cards: ['hari_dan'] },
+    chests: [{ x: 0, y: 4, get: { money: 200 } }, { x: 7, y: 1, get: { item: 'energy_cell' } }, { x: 6, y: 0, get: { item: 'lockon' } }, { x: 2, y: 5, get: { card: 'koishi' } }],
   },
   {
     id: 3, name: '川辺の戦い',
@@ -149,8 +149,8 @@ const STAGES = [
       { cls: 'ga', lv: 4, x: 1, y: 0 }, { cls: 'ga', lv: 4, x: 6, y: 0, ai: 'thief' }, { cls: 'ari', lv: 4, x: 2, y: 1 },
       { cls: 'ari', lv: 4, x: 5, y: 1 }, { cls: 'kuwagata', lv: 4, x: 3, y: 2, ai: 'hold' },
     ],
-    reward: { money: 500, items: ['armor_plate'] },
-    chests: [{ x: 7, y: 4, get: { money: 300 } }, { x: 6, y: 2, get: { item: 'power_motor' } }],
+    reward: { money: 500, items: ['armor_plate'], cards: ['doku_bari'] },
+    chests: [{ x: 7, y: 4, get: { money: 300 } }, { x: 6, y: 2, get: { item: 'power_motor' } }, { x: 0, y: 0, get: { card: 'shibire_kona' } }],
   },
   {
     id: 4, name: '岩山の砦',
@@ -161,8 +161,8 @@ const STAGES = [
       { cls: 'kabuto', lv: 5, x: 1, y: 1, ai: 'hold' }, { cls: 'kabuto', lv: 5, x: 6, y: 1, ai: 'hold' }, { cls: 'chou', lv: 5, x: 3, y: 1 },
       { cls: 'ari', lv: 5, x: 2, y: 0 }, { cls: 'tentou', lv: 5, x: 4, y: 0 },
     ],
-    reward: { money: 600, items: ['lockon'] },
-    chests: [{ x: 0, y: 0, get: { item: 'power_motor' } }, { x: 7, y: 0, get: { money: 300 } }, { x: 7, y: 7, get: { money: 150 } }],
+    reward: { money: 600, items: ['lockon'], cards: ['katai_koura'] },
+    chests: [{ x: 0, y: 0, get: { item: 'power_motor' } }, { x: 7, y: 0, get: { money: 300 } }, { x: 7, y: 7, get: { money: 150 } }, { x: 3, y: 4, get: { card: 'inazuma_hari' } }],
   },
   {
     id: 5, name: 'ぬかるみの湿地',
@@ -173,8 +173,8 @@ const STAGES = [
       { cls: 'kamakiri', lv: 8, x: 3, y: 1, ai: 'boss', boss: true, name: 'カマキリ隊長' },
       { cls: 'ga', lv: 7, x: 1, y: 0 }, { cls: 'ga', lv: 7, x: 6, y: 0 }, { cls: 'ari', lv: 7, x: 2, y: 2 }, { cls: 'ari', lv: 7, x: 5, y: 2 },
     ],
-    reward: { money: 800, items: ['drill_horn'] },
-    chests: [{ x: 0, y: 0, get: { item: 'boomerang' } }, { x: 1, y: 1, get: { money: 400 } }, { x: 6, y: 7, get: { item: 'energy_cell' } }],
+    reward: { money: 800, items: ['drill_horn'], cards: ['hinoko'] },
+    chests: [{ x: 0, y: 0, get: { item: 'boomerang' } }, { x: 1, y: 1, get: { money: 400 } }, { x: 6, y: 7, get: { item: 'energy_cell' } }, { x: 7, y: 0, get: { card: 'hana_mitsu' } }],
   },
   {
     id: 6, name: '夜の森',
@@ -185,8 +185,8 @@ const STAGES = [
       { cls: 'hachi', lv: 9, x: 1, y: 1 }, { cls: 'hachi', lv: 9, x: 6, y: 1, ai: 'thief' }, { cls: 'ga', lv: 9, x: 3, y: 0 },
       { cls: 'ga', lv: 9, x: 4, y: 0 }, { cls: 'tentou', lv: 9, x: 4, y: 1 }, { cls: 'kuwagata', lv: 9, x: 2, y: 2 },
     ],
-    reward: { money: 900, items: ['stealth'] },
-    chests: [{ x: 0, y: 0, get: { item: 'repair_nano' } }, { x: 7, y: 0, get: { money: 400 } }, { x: 0, y: 7, get: { item: 'armor_plate' } }],
+    reward: { money: 900, items: ['stealth'], cards: ['kazekiri'] },
+    chests: [{ x: 0, y: 0, get: { item: 'repair_nano' } }, { x: 7, y: 0, get: { money: 400 } }, { x: 0, y: 7, get: { item: 'armor_plate' } }, { x: 3, y: 4, get: { card: 'kagerou' } }],
   },
   {
     id: 7, name: '大河の渡し',
@@ -197,8 +197,8 @@ const STAGES = [
       { cls: 'chou', lv: 11, x: 2, y: 2 }, { cls: 'chou', lv: 11, x: 5, y: 2 }, { cls: 'ga', lv: 11, x: 3, y: 1, ai: 'thief' },
       { cls: 'ga', lv: 11, x: 4, y: 1 }, { cls: 'kabuto', lv: 11, x: 1, y: 2, ai: 'hold' }, { cls: 'kabuto', lv: 11, x: 6, y: 2, ai: 'hold' },
     ],
-    reward: { money: 1000, items: ['snipe_powder'] },
-    chests: [{ x: 3, y: 4, get: { item: 'blast_spore' } }, { x: 0, y: 0, get: { money: 500 } }, { x: 7, y: 0, get: { item: 'heavy_armor' } }],
+    reward: { money: 1000, items: ['snipe_powder'], cards: ['toomegane'] },
+    chests: [{ x: 3, y: 4, get: { item: 'blast_spore' } }, { x: 0, y: 0, get: { money: 500 } }, { x: 7, y: 0, get: { item: 'heavy_armor' } }, { x: 5, y: 4, get: { card: 'hoshifuri' } }],
   },
   {
     id: 8, name: '鉄の谷',
@@ -209,8 +209,8 @@ const STAGES = [
       { cls: 'kabuto', lv: 10, x: 2, y: 1 }, { cls: 'kabuto', lv: 10, x: 5, y: 1 }, { cls: 'kuwagata', lv: 10, x: 3, y: 2 },
       { cls: 'kuwagata', lv: 10, x: 4, y: 2 }, { cls: 'tentou', lv: 10, x: 3, y: 0 }, { cls: 'kamakiri', lv: 11, x: 4, y: 0, ai: 'hold', boss: true, name: 'カマキリ副長' },
     ],
-    reward: { money: 1200, items: ['turbo_leg'] },
-    chests: [{ x: 0, y: 0, get: { item: 'overdrive' } }, { x: 7, y: 9, get: { money: 300 } }, { x: 7, y: 0, get: { item: 'big_battery' } }],
+    reward: { money: 1200, items: ['turbo_leg'], cards: ['suna_arashi'] },
+    chests: [{ x: 0, y: 0, get: { item: 'overdrive' } }, { x: 7, y: 9, get: { money: 300 } }, { x: 7, y: 0, get: { item: 'big_battery' } }, { x: 3, y: 4, get: { card: 'teppeki' } }],
   },
   {
     id: 9, name: '嵐の高原',
@@ -221,8 +221,8 @@ const STAGES = [
       { cls: 'kuwagata', lv: 14, x: 1, y: 0 }, { cls: 'hachi', lv: 14, x: 3, y: 0, ai: 'thief' }, { cls: 'ga', lv: 14, x: 4, y: 0 }, { cls: 'chou', lv: 14, x: 6, y: 0 },
       { cls: 'kabuto', lv: 14, x: 0, y: 1 }, { cls: 'tentou', lv: 14, x: 4, y: 1 }, { cls: 'ari', lv: 15, x: 7, y: 1 },
     ],
-    reward: { money: 1400, items: ['medi_mist'] },
-    chests: [{ x: 3, y: 2, get: { money: 600 } }, { x: 7, y: 5, get: { item: 'stun_needle' } }, { x: 2, y: 0, get: { item: 'giga_scissor' } }],
+    reward: { money: 1400, items: ['medi_mist'], cards: ['hanabi'] },
+    chests: [{ x: 3, y: 2, get: { money: 600 } }, { x: 7, y: 5, get: { item: 'stun_needle' } }, { x: 2, y: 0, get: { item: 'giga_scissor' } }, { x: 0, y: 0, get: { card: 'rinpun_storm' } }],
   },
   {
     id: 10, name: 'ガラクタ要塞',
@@ -234,7 +234,83 @@ const STAGES = [
       { cls: 'kabuto', lv: 16, x: 2, y: 1, ai: 'hold' }, { cls: 'tentou', lv: 16, x: 4, y: 0 }, { cls: 'ga', lv: 16, x: 1, y: 2 },
       { cls: 'ga', lv: 16, x: 6, y: 2 }, { cls: 'kuwagata', lv: 16, x: 3, y: 3 }, { cls: 'hachi', lv: 16, x: 5, y: 3 },
     ],
-    reward: { money: 2000, items: ['thunder_horn'] },
-    chests: [{ x: 0, y: 4, get: { item: 'meteor_scale' } }, { x: 7, y: 0, get: { money: 1000 } }, { x: 0, y: 0, get: { item: 'turbo_leg' } }],
+    reward: { money: 2000, items: ['thunder_horn'], cards: ['tsuno_hou'] },
+    chests: [{ x: 0, y: 4, get: { item: 'meteor_scale' } }, { x: 7, y: 0, get: { money: 1000 } }, { x: 0, y: 0, get: { item: 'turbo_leg' } }, { x: 3, y: 0, get: { card: 'royal_nectar' } }],
   },
+];
+
+// ===== カード =====
+// kind: attack=攻撃 / heal=回復 / buff=能力アップ / warp=ワープ / status=状態異常・弱体
+// rank: 1〜4（★の数）, range: 使うユニットからの距離, area: 範囲の半径（0=1体だけ）, self: true=自分中心
+// pow: 攻撃の威力, heal: 回復量, cleanse: 状態異常を治す, buff: { k: 能力, v: 増減, t: ターン数 }
+// status: { para: マヒのターン数 } / { poison: [毎ターンのダメージ, ターン数] }
+// warp: 'tile'（空きマスへ移動）/ 'swap'（味方と入れ替わる）
+// only: 'synth'=合成でしか作れない / 'wild'=荒野モードの宝箱でしか出ない（パックからは出ない）
+const CARD_KINDS = {
+  attack: { name: '攻撃', icon: '💥', color: '#e0504a' },
+  heal:   { name: '回復', icon: '💚', color: '#3ccf6e' },
+  buff:   { name: '強化', icon: '⬆️', color: '#e0a030' },
+  warp:   { name: 'ワープ', icon: '🌀', color: '#8a6cff' },
+  status: { name: '状態異常', icon: '☠️', color: '#b05ad0' },
+};
+const BUFF_NAMES = { atk: '攻撃', def: '防御', mov: '移動', rmax: '射程', avo: '回避', hit: '命中' };
+const CARDS = {
+  // --- 攻撃（1体） ---
+  hari_dan:     { name: 'ハリ弾',             kind: 'attack', rank: 1, range: 3, pow: 8,  icon: '📌', desc: '細い針を撃ち出す' },
+  koishi:       { name: 'コイシ・ショット',   kind: 'attack', rank: 1, range: 2, pow: 10, icon: '🪨', desc: '小石をはじき飛ばす' },
+  inazuma_hari: { name: 'イナズマ針',         kind: 'attack', rank: 2, range: 3, pow: 14, icon: '⚡', desc: '電気をまとった針' },
+  kazekiri:     { name: 'カゼキリ刃',         kind: 'attack', rank: 2, range: 4, pow: 12, icon: '🍃', desc: '風の刃が遠くまで届く' },
+  hinoko:       { name: 'ヒノコ玉',           kind: 'attack', rank: 2, range: 2, pow: 16, icon: '🔥', desc: '小さな火の玉' },
+  tsuno_hou:    { name: 'ツノ砲',             kind: 'attack', rank: 3, range: 3, pow: 20, icon: '🦏', desc: '角からエネルギー弾を発射' },
+  hoshifuri:    { name: 'ホシフリ',           kind: 'attack', rank: 3, range: 5, pow: 24, icon: '🌠', desc: '空から星くずを降らせる' },
+  giga_slash:   { name: 'ギガハサミ斬り',     kind: 'attack', rank: 3, range: 1, pow: 28, icon: '✂️', desc: '目の前の敵を力いっぱい挟む' },
+  raimei:       { name: 'ライメイ・ドライブ', kind: 'attack', rank: 4, range: 4, pow: 36, icon: '🌩', desc: '雷鳴とともに突撃する', only: 'synth' },
+  sorawari:     { name: 'ソラワリ',           kind: 'attack', rank: 4, range: 6, pow: 44, icon: '☄️', desc: '空を割るほどの一撃', only: 'synth' },
+  // --- 攻撃（範囲） ---
+  tsubu_bomb:   { name: 'ツブツブ爆弾',       kind: 'attack', rank: 1, range: 3, area: 1, pow: 7,  icon: '💣', desc: '着弾点のまわりの敵にダメージ' },
+  suna_arashi:  { name: 'スナアラシ',         kind: 'attack', rank: 2, self: true, area: 2, pow: 10, icon: '🌪', desc: '自分のまわり2マスの敵を巻き込む' },
+  hanabi:       { name: 'ハナビ・スポア',     kind: 'attack', rank: 2, range: 4, area: 1, pow: 13, icon: '🎆', desc: '胞子がはじけて広がる' },
+  rinpun_storm: { name: 'リンプン・ストーム', kind: 'attack', rank: 3, range: 3, area: 2, pow: 17, icon: '✨', desc: '鱗粉の嵐で広く攻撃' },
+  daichi_yure:  { name: 'ダイチユレ',         kind: 'attack', rank: 4, self: true, area: 2, pow: 26, icon: '🌋', desc: '地面をゆらして周りの敵をなぎ倒す', only: 'synth' },
+  // --- 回復 ---
+  mitsu:        { name: 'ミツのしずく',       kind: 'heal', rank: 1, range: 1, heal: 12, icon: '🍯', desc: '味方1体を12回復' },
+  repair_gel:   { name: 'リペアジェル',       kind: 'heal', rank: 1, range: 2, heal: 8, cleanse: true, icon: '🧴', desc: '8回復して状態異常も治す' },
+  hana_mitsu:   { name: 'ハナミツ',           kind: 'heal', rank: 2, range: 2, heal: 20, icon: '🌼', desc: '味方1体を20回復' },
+  asatsuyu:     { name: 'アサツユの輪',       kind: 'heal', rank: 2, self: true, area: 2, heal: 10, icon: '💧', desc: '自分のまわり2マスの味方を10回復' },
+  royal_nectar: { name: 'ロイヤル・ネクター', kind: 'heal', rank: 3, range: 3, heal: 999, cleanse: true, icon: '👑', desc: '味方1体を全回復・状態異常も治す' },
+  megumi:       { name: 'メグミの雨',         kind: 'heal', rank: 3, self: true, area: 3, heal: 20, cleanse: true, icon: '🌧', desc: 'まわり3マスの味方を20回復・状態異常も治す' },
+  // --- 能力アップ ---
+  power_jushi:  { name: 'ちからの樹液',       kind: 'buff', rank: 1, range: 1, buff: { k: 'atk', v: 4, t: 2 }, icon: '💪', desc: '攻撃+4（2ターン）' },
+  katai_koura:  { name: 'カタイ甲羅',         kind: 'buff', rank: 1, range: 1, buff: { k: 'def', v: 4, t: 2 }, icon: '🛡', desc: '防御+4（2ターン）' },
+  hayabane:     { name: 'ハヤバネ',           kind: 'buff', rank: 1, range: 1, buff: { k: 'mov', v: 2, t: 2 }, icon: '👟', desc: '移動+2（2ターン）' },
+  toomegane:    { name: 'トオメガネ',         kind: 'buff', rank: 2, range: 1, buff: { k: 'rmax', v: 1, t: 3 }, icon: '🔭', desc: '射程+1（3ターン）' },
+  kagerou:      { name: 'カゲロウ',           kind: 'buff', rank: 2, range: 1, buff: { k: 'avo', v: 30, t: 2 }, icon: '👻', desc: '回避+30（2ターン）' },
+  ouen_uta:     { name: 'オウエン歌',         kind: 'buff', rank: 2, self: true, area: 2, buff: { k: 'atk', v: 3, t: 2 }, icon: '🎵', desc: 'まわり2マスの味方の攻撃+3（2ターン）' },
+  kakusei:      { name: 'カクセイ',           kind: 'buff', rank: 3, range: 1, buff: { k: 'atk', v: 9, t: 3 }, icon: '🔥', desc: '攻撃+9（3ターン）' },
+  teppeki:      { name: 'テッペキ',           kind: 'buff', rank: 3, range: 1, buff: { k: 'def', v: 9, t: 3 }, icon: '🏰', desc: '防御+9（3ターン）' },
+  // --- ワープ ---
+  warp_pod:     { name: 'ワープ・ポッド',     kind: 'warp', rank: 1, range: 5, warp: 'tile', icon: '🛸', desc: '5マス以内の空きマスへ瞬間移動' },
+  irekae:       { name: 'イレカエ',           kind: 'warp', rank: 2, range: 99, warp: 'swap', icon: '🔄', desc: '好きな味方と場所を入れ替える' },
+  jikuu_tunnel: { name: 'ジクウトンネル',     kind: 'warp', rank: 3, range: 99, warp: 'tile', icon: '🕳', desc: 'マップのどこへでも瞬間移動' },
+  // --- 状態異常・弱体 ---
+  shibire_kona: { name: 'シビレ粉',           kind: 'status', rank: 1, range: 3, status: { para: 1 }, icon: '💫', desc: '敵1体をマヒ（1ターン行動できない）。ボスには効かない' },
+  doku_bari:    { name: 'ドクバリ',           kind: 'status', rank: 1, range: 2, status: { poison: [4, 3] }, icon: '🧪', desc: '毒：3ターンのあいだ毎ターン4ダメージ' },
+  ashidome:     { name: 'アシドメ・ネット',   kind: 'status', rank: 1, range: 3, buff: { k: 'mov', v: -3, t: 2 }, icon: '🕸', desc: '敵の移動-3（2ターン）' },
+  yowami:       { name: 'ヨワミ光線',         kind: 'status', rank: 2, range: 4, buff: { k: 'atk', v: -5, t: 2 }, icon: '📉', desc: '敵の攻撃-5（2ターン）' },
+  sabi_eki:     { name: 'サビつき液',         kind: 'status', rank: 2, range: 3, buff: { k: 'def', v: -5, t: 2 }, icon: '🟤', desc: '敵の防御-5（2ターン）' },
+  nemuri_kona:  { name: 'ネムリコナ',         kind: 'status', rank: 2, range: 3, area: 1, status: { para: 1 }, icon: '😴', desc: '着弾点のまわりの敵をマヒ（1ターン）' },
+  moudoku:      { name: 'モウドクの霧',       kind: 'status', rank: 3, range: 3, area: 1, status: { poison: [7, 3] }, icon: '☠️', desc: 'まわりの敵に毒：毎ターン7ダメージ（3ターン）' },
+  tokitome:     { name: 'トキトメ・ベル',     kind: 'status', rank: 4, self: true, area: 3, status: { para: 2 }, icon: '🔔', desc: 'まわり3マスの敵を2ターンマヒ', only: 'synth' },
+};
+// 新しく始めたとき（と以前のセーブ）に配る最初のカード（20枚）
+const STARTER_CARDS = {
+  hari_dan: 3, koishi: 2, tsubu_bomb: 2, mitsu: 3, repair_gel: 1, power_jushi: 2,
+  katai_koura: 2, hayabane: 1, warp_pod: 1, shibire_kona: 2, doku_bari: 1,
+};
+const DECK_SIZE = 20;      // デッキの枚数
+const DECK_MAX_SAME = 3;   // 同じカードは3枚まで
+// ショップのカードパック（rate: ★1〜4が出る割合）
+const CARD_PACKS = [
+  { id: 'normal', name: 'ノーマルパック', price: 300,  count: 3, rate: [70, 27, 3, 0],  desc: '★1〜★2が中心。たまに★3' },
+  { id: 'gold',   name: 'ゴールドパック', price: 1200, count: 3, rate: [0, 60, 40, 0],  desc: '★2〜★3だけが出る', unlock: 5 },
 ];

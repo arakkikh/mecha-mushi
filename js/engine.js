@@ -66,6 +66,8 @@ const Engine = (() => {
       weapon: spec.weapon || c.weapon, parts: (spec.parts || []).slice(),
       type: c.type, move: c.move, ai: spec.ai || 'aggressive',
       rosterId: spec.id, acted: false, boss: !!spec.boss,
+      buffs: [],                    // 能力の増減 [{ k, v, t }]
+      st: { para: 0, poison: null }, // 状態異常（マヒの残りターン / 毒 { dmg, t }）
     }, st, { hp: st.maxhp });
   }
 
@@ -78,6 +80,7 @@ const Engine = (() => {
       tiles: stage.rows.map(r => r.split('')),
       units: [], turn: 1, phase: 'player', nextUid: 1,
       // 宝箱：state = closed（未開封）/ opened（味方が取得）/ stolen（敵が取得）/ done（以前に取得済み）
+      deck: (extra.deck || []).map((id, i) => ({ i, id, used: false })), // 持ち込んだカード（1戦で1回ずつ）
       chests: extra.noChests ? [] : (stage.chests || []).map((c, i) => ({
         i, x: c.x, y: c.y, get: c.get, state: taken.includes(i) ? 'done' : 'closed',
       })),
@@ -238,6 +241,7 @@ const Engine = (() => {
     const st = calcStats(u);
     const dhp = st.maxhp - u.maxhp;
     Object.assign(u, st);
+    for (const bf of u.buffs || []) u[bf.k] += bf.v; // カードの効果は残す
     u.hp = Math.min(u.maxhp, u.hp + dhp);
     return { lv: u.lv, up };
   }
@@ -276,6 +280,8 @@ const Engine = (() => {
   function startPhase(b, side) {
     b.phase = side;
     const ev = [];
+    // 相手側のフェイズが終わったので、相手側の能力アップ・ダウンのターンを進める
+    for (const u of alive(b, side === 'player' ? 'enemy' : 'player')) tickBuffs(u, ev);
     for (const u of alive(b, side)) {
       u.acted = false;
       if (u.regen && u.hp < u.maxhp) {
@@ -283,8 +289,140 @@ const Engine = (() => {
         u.hp = Math.min(u.maxhp, u.hp + u.regen);
         ev.push({ kind: 'heal', att: u.uid, def: u.uid, amount: u.hp - before });
       }
+      const ps = u.st && u.st.poison;
+      if (ps) { // 毒：HPは1より下がらない
+        const dmg = Math.min(ps.dmg, u.hp - 1);
+        u.hp -= dmg;
+        ev.push({ kind: 'poison', def: u.uid, dmg });
+        if (--ps.t <= 0) u.st.poison = null;
+      }
+      if (u.st && u.st.para > 0) { // マヒ：このフェイズは行動できない
+        u.st.para--;
+        u.acted = true;
+        ev.push({ kind: 'para', def: u.uid });
+      }
     }
     return ev;
+  }
+  function tickBuffs(u, ev) {
+    if (!u.buffs || !u.buffs.length) return;
+    u.buffs = u.buffs.filter(bf => {
+      if (--bf.t > 0) return true;
+      u[bf.k] -= bf.v;
+      ev.push({ kind: 'buffend', def: u.uid, k: bf.k });
+      return false;
+    });
+  }
+  function applyBuff(u, bf) {
+    const before = u[bf.k];
+    const min = bf.k === 'mov' || bf.k === 'rmax' ? 1 : bf.k === 'atk' ? 1 : 0;
+    u[bf.k] = Math.max(min, u[bf.k] + bf.v);
+    if (bf.k === 'rmax' && u.rmax < u.rmin) u.rmax = u.rmin;
+    const v = u[bf.k] - before;
+    if (v) u.buffs.push({ k: bf.k, v, t: bf.t });
+    return v;
+  }
+
+  // ===== カード =====
+  const cardFoe = c => c.kind === 'attack' || c.kind === 'status';
+  const passable = (b, u, x, y) => terrain(b, x, y).cost[u.move] < 99;
+  // (x,y) を中心に効果を受けるユニット
+  function cardAffected(b, u, c, x, y) {
+    if (c.kind === 'warp') return [];
+    if (!c.area) {
+      const t = unitAt(b, x, y);
+      return t && (cardFoe(c) ? t.side !== u.side : t.side === u.side) ? [t] : [];
+    }
+    return alive(b).filter(t => dist(x, y, t.x, t.y) <= c.area && (cardFoe(c) ? t.side !== u.side : t.side === u.side));
+  }
+  // カードを使えるマス
+  function cardTiles(b, u, id) {
+    const c = CARDS[id];
+    const out = [];
+    const R = c.self ? 0 : c.range;
+    for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) {
+      if (dist(u.x, u.y, x, y) > R) continue;
+      if (c.kind === 'warp') {
+        const t = unitAt(b, x, y);
+        if (c.warp === 'swap' ? (t && t.side === u.side && t !== u && passable(b, t, u.x, u.y) && passable(b, u, x, y)) : (!t && passable(b, u, x, y))) out.push({ x, y });
+        continue;
+      }
+      const ts = cardAffected(b, u, c, x, y);
+      const useful = c.kind === 'heal' ? ts.some(t => t.hp < t.maxhp || (c.cleanse && (t.st.para || t.st.poison))) : ts.length > 0;
+      if (useful) out.push({ x, y });
+    }
+    return out;
+  }
+  function cardDamage(b, u, t, c, mult) {
+    const def = t.def + defBonus(b, t).def;
+    return Math.max(1, Math.round((c.pow + u.atk * 0.4) * (mult || 1) - def * 0.4));
+  }
+  // カードを使う。mult はミニゲームの結果（0.6〜1.5）
+  function useCard(b, u, deckIdx, x, y, mult, rng) {
+    rng = rng || Math.random;
+    const slot = b.deck[deckIdx];
+    if (!slot || slot.used) return [];
+    const c = CARDS[slot.id];
+    slot.used = true;
+    const ev = [{ kind: 'card', uid: u.uid, id: slot.id, x, y, mult: mult || 1 }];
+    let exp = 10;
+    if (c.kind === 'warp') {
+      const t = c.warp === 'swap' ? unitAt(b, x, y) : null;
+      ev.push({ kind: 'warp', uid: u.uid, x, y });
+      if (t) { ev.push({ kind: 'warp', uid: t.uid, x: u.x, y: u.y }); t.x = u.x; t.y = u.y; }
+      u.x = x; u.y = y;
+    }
+    for (const t of cardAffected(b, u, c, x, y)) {
+      if (c.kind === 'attack') {
+        const dmg = cardDamage(b, u, t, c, mult);
+        t.hp = Math.max(0, t.hp - dmg);
+        ev.push({ kind: 'strike', att: u.uid, def: t.uid, hit: true, dmg, counter: false, killed: t.hp <= 0, card: true });
+        const diff = t.lv - u.lv;
+        exp += Math.max(1, 10 + diff * 3) + (t.hp <= 0 ? Math.max(5, 30 + diff * 8) : 0);
+      } else if (c.kind === 'heal') {
+        const before = t.hp;
+        t.hp = Math.min(t.maxhp, t.hp + c.heal);
+        if (c.cleanse) { t.st.para = 0; t.st.poison = null; t.buffs = t.buffs.filter(bf => bf.v > 0 || (t[bf.k] -= bf.v, false)); }
+        ev.push({ kind: 'heal', att: u.uid, def: t.uid, amount: t.hp - before });
+        exp += 2;
+      } else {
+        if (c.buff) {
+          const v = applyBuff(t, c.buff);
+          ev.push({ kind: 'buff', def: t.uid, k: c.buff.k, v });
+        }
+        if (c.status && c.status.para) {
+          if (t.boss) ev.push({ kind: 'resist', def: t.uid });
+          else { t.st.para = Math.max(t.st.para, c.status.para); ev.push({ kind: 'status', def: t.uid, s: 'para' }); }
+        }
+        if (c.status && c.status.poison) {
+          t.st.poison = { dmg: c.status.poison[0], t: c.status.poison[1] };
+          ev.push({ kind: 'status', def: t.uid, s: 'poison' });
+        }
+        exp += 3;
+      }
+    }
+    const lvup = gainExp(u, exp, rng);
+    if (lvup) ev.push({ kind: 'levelup', uid: u.uid, info: lvup });
+    return ev;
+  }
+  // CPU（テスト用の自動プレイ）がカードを使うかどうか：(x,y) にいるとして一番よい使い方
+  function planCard(b, u) {
+    let best = null;
+    const tried = new Set();
+    for (const slot of b.deck) {
+      if (slot.used || tried.has(slot.id)) continue;
+      tried.add(slot.id);
+      const c = CARDS[slot.id];
+      for (const p of cardTiles(b, u, slot.id)) {
+        const ts = cardAffected(b, u, c, p.x, p.y);
+        let sc = 0;
+        if (c.kind === 'attack') for (const t of ts) { const dm = cardDamage(b, u, t, c, 1); sc += Math.min(dm, t.hp) + (dm >= t.hp ? 20 : 0); }
+        else if (c.kind === 'heal') for (const t of ts) { const miss = t.maxhp - t.hp; if (miss >= 10 && t.hp < t.maxhp * 0.5) sc += Math.min(miss, c.heal); }
+        else if (c.kind === 'status') for (const t of ts) sc += c.status && c.status.para && !t.boss ? t.atk * 0.8 : c.status && c.status.poison ? c.status.poison[0] * 2 : 4;
+        if (sc > 0 && (!best || sc > best.score)) best = { score: sc, deckIdx: slot.i, id: slot.id, x: p.x, y: p.y };
+      }
+    }
+    return best;
   }
 
   function result(b) {
@@ -357,7 +495,7 @@ const Engine = (() => {
   }
 
   return {
-    key, dist, affinity, calcStats, chestAt, openChest, makeUnit, createBattle, alive, unitAt, byUid, terrain,
+    key, dist, affinity, calcStats, chestAt, openChest, cardTiles, cardAffected, cardDamage, useCard, planCard, applyBuff, makeUnit, createBattle, alive, unitAt, byUid, terrain,
     reachable, pathTo, targetsFrom, healTargetsFrom, threatTiles, forecast, calcHit, calcDmg,
     doAttack, doHeal, startPhase, result, planAI, gainExp, defaultGain, MAX_LV,
   };

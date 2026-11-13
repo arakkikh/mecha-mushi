@@ -8,7 +8,7 @@
         ok(c.x >= 0 && c.y >= 0 && c.y < st.rows.length && c.x < st.rows[0].length, `S${i + 1} 宝箱が範囲外`);
         ok(!used.has(c.x + ',' + c.y), `S${i + 1} 宝箱がユニットと重なる ${c.x},${c.y}`);
         used.add(c.x + ',' + c.y);
-        ok(c.get && (c.get.money > 0 || Save.item(c.get.item)), `S${i + 1} 宝箱の中身 ${JSON.stringify(c.get)}`);
+        ok(c.get && (c.get.money > 0 || Save.item(c.get.item) || CARDS[c.get.card]), `S${i + 1} 宝箱の中身 ${JSON.stringify(c.get)}`);
       }
       ok((st.chests || []).length >= 2, `S${i + 1} 宝箱2個以上`);
     });
@@ -48,14 +48,14 @@
     // ---- セーブ ----
     Save.reset();
     const d = Save.data;
-    ok(Save.chestCount(STAGES[1]).got === 0 && Save.chestCount(STAGES[1]).total === 3, '宝箱 0/3');
+    ok(Save.chestCount(STAGES[1]).got === 0 && Save.chestCount(STAGES[1]).total === 4, '宝箱 0/4');
     const m0 = d.money;
     Save.takeChest(STAGES[1], 0, STAGES[1].chests[0].get);
     Save.takeChest(STAGES[1], 1, STAGES[1].chests[1].get);
     ok(d.money === m0 + STAGES[1].chests[0].get.money, 'お金を受け取る');
     ok(Save.count(STAGES[1].chests[1].get.item) === 1, 'パーツを受け取る');
     Save.load();
-    ok(Save.chestCount(STAGES[1]).got === 2, '宝箱 2/3 がセーブされる');
+    ok(Save.chestCount(STAGES[1]).got === 2, '宝箱 2/4 がセーブされる');
     ok(Save.getLabel({ money: 50 }) === '💰50' && Save.getLabel({ item: 'drill_horn' }).includes('ドリルホーン'), '中身の表示');
 
     // ---- 旧セーブ（宝箱の項目がない v1）を引き継げる ----
@@ -94,7 +94,7 @@
       pl += r.b.chests.filter(c => c.state === 'opened').length;
       en += r.b.chests.filter(c => c.state === 'stolen').length;
     }
-    print(`  S2 宝箱の取り合い（4戦）: 味方 ${pl}個 / 敵 ${en}個 / 残り ${12 - pl - en}個`);
+    print(`  S2 宝箱の取り合い（4戦）: 味方 ${pl}個 / 敵 ${en}個 / 残り ${STAGES[1].chests.length * 4 - pl - en}個`);
     ok(pl > 0, '味方CPUも宝箱を取る');
     print(fails === 0 ? 'ALL OK' : `FAILED: ${fails}`);
   } catch (e) { print('ERROR: ' + e + '\n' + e.stack); }
