@@ -10,7 +10,7 @@ async function waitIdle() {
     if (m !== 'busy' && BattleUI.state.phase === 'player' && Engine.alive(BattleUI.state, 'player').some(u => !u.acted)) return;
     await sleep();
   }
-  throw new Error('待機タイムアウト mode=' + BattleUI.mode);
+  throw new Error('待機タイムアウト mode=' + BattleUI.mode + ' phase=' + BattleUI.state.phase + ' ' + JSON.stringify(Engine.alive(BattleUI.state).map(u => [u.side, u.cls, u.hp, u.acted, u.st, u.x, u.y])));
 }
 
 // extra.deck を渡すとCPUもカードを使う（cardMin: この点数以上ならカードを使う）

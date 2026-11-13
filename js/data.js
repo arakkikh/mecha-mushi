@@ -2,13 +2,17 @@
 // ===== ゲームデータ（地形・相性・兵種・武器・パーツ・ステージ） =====
 
 // 地形：移動コスト（移動タイプ別）・防御補正・回避補正
+// 移動タイプ：ground=陸 / light=軽量（森が得意）/ fly=飛行（地形無視）/ climb=登はん（森・岩が得意）
+//             hop=跳躍（水以外どこでも1）/ swim=水中（水が得意）
 const TERRAIN = {
-  G: { name: '草地', cost: { ground: 1, light: 1, fly: 1 }, def: 0, avo: 0 },
-  F: { name: '森',   cost: { ground: 2, light: 1, fly: 1 }, def: 1, avo: 20 },
-  R: { name: '岩場', cost: { ground: 3, light: 2, fly: 1 }, def: 3, avo: 10 },
-  W: { name: '水',   cost: { ground: 99, light: 99, fly: 1 }, def: 0, avo: 0 },
+  G: { name: '草地', cost: { ground: 1, light: 1, fly: 1, climb: 1, hop: 1, swim: 1 }, def: 0, avo: 0 },
+  F: { name: '森',   cost: { ground: 2, light: 1, fly: 1, climb: 1, hop: 1, swim: 2 }, def: 1, avo: 20 },
+  R: { name: '岩場', cost: { ground: 3, light: 2, fly: 1, climb: 1, hop: 1, swim: 3 }, def: 3, avo: 10 },
+  W: { name: '水',   cost: { ground: 99, light: 99, fly: 1, climb: 99, hop: 99, swim: 1 }, def: 0, avo: 0, swimDef: 3 },
 };
-const MOVE_NAMES = { ground: '陸', light: '軽量', fly: '飛行' };
+const MOVE_NAMES = { ground: '陸', light: '軽量', fly: '飛行', climb: '登はん', hop: '跳躍', swim: '水中' };
+// 武器の特殊効果
+const FX_NAMES = { poison: '毒', para: 'マヒ', double: '2回攻撃', pierce: '防御半減', web: '移動ダウン', drain: 'HP吸収', antiair: '対空' };
 
 // 相性（じゃんけん）：牙 → 甲 → 翅 → 牙
 const TYPES = {
@@ -44,21 +48,81 @@ const CLASSES = {
     base: { hp: 26, atk: 5, def: 7, mov: 4 }, grow: { hp: 0.8, atk: 0.3, def: 0.5 },
     hit: 0, avo: 5, cats: ['support'], weapon: 'care_spray',
   },
-  // --- 敵専用 ---
   ari: {
-    name: 'アリ型', type: 'KIBA', move: 'ground', role: '量産型', enemyOnly: true,
-    base: { hp: 18, atk: 7, def: 4, mov: 4 }, grow: { hp: 0.7, atk: 0.45, def: 0.35 },
+    name: 'アリ型', type: 'KIBA', move: 'ground', role: '量産型・よく育つ',
+    base: { hp: 18, atk: 7, def: 4, mov: 4 }, grow: { hp: 0.8, atk: 0.5, def: 0.45 },
     hit: 0, avo: 0, cats: ['melee'], weapon: 'ant_jaw',
   },
   kamakiri: {
-    name: 'カマキリ型', type: 'KIBA', move: 'ground', role: '指揮官', enemyOnly: true,
+    name: 'カマキリ型', type: 'KIBA', move: 'ground', role: '鋭い鎌・高命中',
     base: { hp: 34, atk: 11, def: 6, mov: 4 }, grow: { hp: 1.0, atk: 0.6, def: 0.4 },
     hit: 5, avo: 10, cats: ['melee'], weapon: 'mantis_scythe',
   },
   ga: {
-    name: 'ガ型', type: 'HANE', move: 'fly', role: '遠距離・飛行', enemyOnly: true,
+    name: 'ガ型', type: 'HANE', move: 'fly', role: '遠距離・飛行・マヒ粉',
     base: { hp: 20, atk: 7, def: 3, mov: 5 }, grow: { hp: 0.6, atk: 0.45, def: 0.25 },
     hit: 0, avo: 5, cats: ['ranged'], weapon: 'dark_powder',
+  },
+  tonbo: {
+    name: 'トンボ型', type: 'HANE', move: 'fly', role: '超高速の飛行',
+    base: { hp: 20, atk: 9, def: 3, mov: 7 }, grow: { hp: 0.6, atk: 0.5, def: 0.25 },
+    hit: 5, avo: 15, cats: ['melee'], weapon: 'wing_blade',
+  },
+  kumo: {
+    name: 'クモ型', type: 'KIBA', move: 'climb', role: '糸で足止め・岩森が得意',
+    base: { hp: 22, atk: 8, def: 4, mov: 4 }, grow: { hp: 0.7, atk: 0.45, def: 0.35 },
+    hit: 5, avo: 5, cats: ['ranged'], weapon: 'web_shot',
+  },
+  hotaru: {
+    name: 'ホタル型', type: 'HANE', move: 'fly', role: '飛べる回復役・状態異常を治す',
+    base: { hp: 20, atk: 5, def: 4, mov: 5 }, grow: { hp: 0.65, atk: 0.3, def: 0.35 },
+    hit: 0, avo: 10, cats: ['support'], weapon: 'glow_mist',
+  },
+  batta: {
+    name: 'バッタ型', type: 'KIBA', move: 'hop', role: 'ジャンプで地形を無視',
+    base: { hp: 24, atk: 10, def: 4, mov: 5 }, grow: { hp: 0.75, atk: 0.55, def: 0.3 },
+    hit: 0, avo: 10, cats: ['melee'], weapon: 'kick_leg',
+  },
+  dangomushi: {
+    name: 'ダンゴムシ型', type: 'KOU', move: 'ground', role: '鉄壁の守り',
+    base: { hp: 30, atk: 6, def: 11, mov: 3 }, grow: { hp: 1.0, atk: 0.3, def: 0.75 },
+    hit: 0, avo: 0, cats: ['melee'], weapon: 'roll_tackle',
+  },
+  semi: {
+    name: 'セミ型', type: 'HANE', move: 'fly', role: '音波で防御を無視',
+    base: { hp: 22, atk: 8, def: 4, mov: 4 }, grow: { hp: 0.7, atk: 0.5, def: 0.3 },
+    hit: 5, avo: 0, cats: ['ranged'], weapon: 'sonic_wave',
+  },
+  gengorou: {
+    name: 'ゲンゴロウ型', type: 'KOU', move: 'swim', role: '水中が得意',
+    base: { hp: 28, atk: 9, def: 7, mov: 4 }, grow: { hp: 0.85, atk: 0.5, def: 0.5 },
+    hit: 0, avo: 5, cats: ['melee'], weapon: 'water_fang',
+  },
+  kamikiri: {
+    name: 'カミキリ型', type: 'KIBA', move: 'ground', role: '長い触角の剣・射程1-2',
+    base: { hp: 24, atk: 11, def: 5, mov: 4 }, grow: { hp: 0.75, atk: 0.6, def: 0.35 },
+    hit: 0, avo: 5, cats: ['melee'], weapon: 'antenna_saber',
+  },
+  // --- 敵専用 ---
+  sasori: {
+    name: 'サソリ型', type: 'KIBA', move: 'ground', role: '毒の尾', enemyOnly: true,
+    base: { hp: 36, atk: 12, def: 8, mov: 4 }, grow: { hp: 1.0, atk: 0.6, def: 0.5 },
+    hit: 5, avo: 5, cats: ['melee'], weapon: 'sasori_tail',
+  },
+  mukade: {
+    name: 'ムカデ型', type: 'KIBA', move: 'ground', role: '連続攻撃', enemyOnly: true,
+    base: { hp: 28, atk: 9, def: 5, mov: 5 }, grow: { hp: 0.8, atk: 0.5, def: 0.35 },
+    hit: 0, avo: 5, cats: ['melee'], weapon: 'mukade_fang',
+  },
+  junk_titan: {
+    name: 'ガラクタ巨兵', type: 'KOU', move: 'ground', role: '巨大ロボ', enemyOnly: true,
+    base: { hp: 44, atk: 12, def: 12, mov: 3 }, grow: { hp: 1.2, atk: 0.6, def: 0.7 },
+    hit: 0, avo: 0, cats: ['melee'], weapon: 'junk_hammer',
+  },
+  emperor: {
+    name: 'ガラクタ大王', type: 'KOU', move: 'ground', role: '軍団の王', enemyOnly: true,
+    base: { hp: 60, atk: 16, def: 12, mov: 4 }, grow: { hp: 1.4, atk: 0.7, def: 0.6 },
+    hit: 10, avo: 10, cats: ['melee'], weapon: 'emperor_lance',
   },
 };
 
@@ -82,10 +146,40 @@ const WEAPONS = {
   care_spray:   { name: 'ケアスプレー',     cat: 'support', pow: 1, hit: 90, rmin: 1, rmax: 1, heal: 10, price: 0,    desc: '味方を10回復' },
   medi_mist:    { name: 'メディミスト',     cat: 'support', pow: 2, hit: 90, rmin: 1, rmax: 2, heal: 14, price: 900,  desc: '射程2・味方を14回復' },
   royal_jelly:  { name: 'ロイヤルゼリー砲', cat: 'support', pow: 4, hit: 90, rmin: 1, rmax: 2, heal: 20, price: 1800, desc: '射程2・味方を20回復' },
+  // 各ユニットの標準武器（price: 0）
+  ant_jaw:       { name: 'アリアゴ',       cat: 'melee',  pow: 4, hit: 90, rmin: 1, rmax: 1, price: 0, desc: '小さくても丈夫なあご' },
+  mantis_scythe: { name: 'デスサイズ',     cat: 'melee',  pow: 7, hit: 85, rmin: 1, rmax: 1, price: 0, desc: '鋭い鎌' },
+  dark_powder:   { name: 'ダークパウダー', cat: 'ranged', pow: 4, hit: 85, rmin: 1, rmax: 2, price: 0, fx: 'para', desc: 'まれにマヒさせる粉' },
+  wing_blade:    { name: 'ウイングブレード', cat: 'melee', pow: 4, hit: 95, rmin: 1, rmax: 1, price: 0, desc: '翅のふちの刃' },
+  web_shot:      { name: 'ウェブショット', cat: 'ranged', pow: 3, hit: 90, rmin: 1, rmax: 2, price: 0, fx: 'web', desc: '当たると移動-2（1ターン）' },
+  glow_mist:     { name: 'グローミスト',   cat: 'support', pow: 1, hit: 90, rmin: 1, rmax: 2, heal: 8, cleanse: true, price: 0, desc: '射程2・8回復＋状態異常を治す' },
+  kick_leg:      { name: 'キックレッグ',   cat: 'melee', pow: 5, hit: 85, rmin: 1, rmax: 1, price: 0, desc: '強い後ろ足のキック' },
+  roll_tackle:   { name: 'ローリングタックル', cat: 'melee', pow: 4, hit: 90, rmin: 1, rmax: 1, price: 0, desc: '丸まって体当たり' },
+  sonic_wave:    { name: 'ソニックウェーブ', cat: 'ranged', pow: 3, hit: 90, rmin: 2, rmax: 3, price: 0, fx: 'pierce', desc: '防御を半分無視する音波。近くは撃てない' },
+  water_fang:    { name: 'ウォーターファング', cat: 'melee', pow: 5, hit: 90, rmin: 1, rmax: 1, price: 0, desc: '水をまとったキバ' },
+  antenna_saber: { name: 'アンテナセイバー', cat: 'melee', pow: 4, hit: 85, rmin: 1, rmax: 2, price: 0, desc: '長い触角の剣。射程1-2' },
+  // 店・宝箱の武器（unlock: ストーリーをこの数クリアすると店に並ぶ / shop: false は店に出ない）
+  sky_hook:      { name: 'スカイフック',   cat: 'melee', pow: 6,  hit: 85, rmin: 1, rmax: 1, price: 900,  fx: 'antiair', unlock: 4, desc: '飛行ユニットに1.5倍' },
+  poison_fang:   { name: 'ポイズンファング', cat: 'melee', pow: 6, hit: 85, rmin: 1, rmax: 1, price: 1000, fx: 'poison', unlock: 6, desc: '当たると毒' },
+  para_claw:     { name: 'パラライズクロー', cat: 'melee', pow: 5, hit: 85, rmin: 1, rmax: 1, price: 1300, fx: 'para', unlock: 10, desc: '30%でマヒ（ボス以外）' },
+  twin_blade:    { name: 'ツインブレード', cat: 'melee', pow: 4,  hit: 85, rmin: 1, rmax: 1, price: 1500, fx: 'double', unlock: 12, desc: '2回攻撃する' },
+  vampire_jaw:   { name: 'ヴァンパイアジョー', cat: 'melee', pow: 7, hit: 85, rmin: 1, rmax: 1, price: 1600, fx: 'drain', unlock: 14, desc: '与えたダメージの半分回復' },
+  pierce_horn:   { name: 'ピアスホーン',   cat: 'melee', pow: 9,  hit: 85, rmin: 1, rmax: 1, price: 2200, fx: 'pierce', unlock: 16, desc: '防御を半分無視する' },
+  titan_horn:    { name: 'タイタンホーン', cat: 'melee', pow: 16, hit: 80, rmin: 1, rmax: 1, price: 3500, unlock: 22, desc: '巨大な鋼鉄の角' },
+  king_scissor:  { name: 'キングシザー',   cat: 'melee', pow: 19, hit: 75, rmin: 1, rmax: 1, price: 0, shop: false, desc: '王者の大あご（宝箱でしか見つからない）' },
+  anti_air_shot: { name: 'アンチエアショット', cat: 'ranged', pow: 7, hit: 85, rmin: 1, rmax: 2, price: 1100, fx: 'antiair', unlock: 8, desc: '飛行ユニットに1.5倍' },
+  venom_shot:    { name: 'ベノムショット', cat: 'ranged', pow: 6,  hit: 85, rmin: 1, rmax: 2, price: 1200, fx: 'poison', unlock: 10, desc: '当たると毒' },
+  para_shot:     { name: 'パラライズショット', cat: 'ranged', pow: 5, hit: 85, rmin: 2, rmax: 3, price: 1500, fx: 'para', unlock: 13, desc: '30%でマヒ。近くは撃てない' },
+  rail_needle:   { name: 'レールニードル', cat: 'ranged', pow: 9,  hit: 85, rmin: 2, rmax: 3, price: 2500, fx: 'pierce', unlock: 17, desc: '防御を半分無視。近くは撃てない' },
+  galaxy_spore:  { name: 'ギャラクシースポア', cat: 'ranged', pow: 15, hit: 80, rmin: 2, rmax: 4, price: 4200, unlock: 24, desc: '射程2-4の超長距離砲' },
+  star_cannon:   { name: 'スターキャノン', cat: 'ranged', pow: 17, hit: 85, rmin: 1, rmax: 3, price: 0, shop: false, desc: '星の力を撃つ（宝箱でしか見つからない）' },
+  big_mist:      { name: 'ビッグミスト',   cat: 'support', pow: 3, hit: 90, rmin: 1, rmax: 2, heal: 26, price: 2800, unlock: 18, desc: '射程2・味方を26回復' },
+  phoenix_dew:   { name: 'フェニックスの露', cat: 'support', pow: 5, hit: 90, rmin: 1, rmax: 3, heal: 34, cleanse: true, price: 0, shop: false, desc: '射程3・34回復＋状態異常を治す（宝箱）' },
   // 敵専用
-  ant_jaw:       { name: 'アリアゴ',     cat: 'melee',  pow: 4, hit: 90, rmin: 1, rmax: 1, price: 0, enemyOnly: true, desc: '' },
-  mantis_scythe: { name: 'デスサイズ',   cat: 'melee',  pow: 7, hit: 85, rmin: 1, rmax: 1, price: 0, enemyOnly: true, desc: '' },
-  dark_powder:   { name: 'ダークパウダー', cat: 'ranged', pow: 4, hit: 85, rmin: 1, rmax: 2, price: 0, enemyOnly: true, desc: '' },
+  sasori_tail:   { name: 'サソリテイル',   cat: 'melee', pow: 7,  hit: 85, rmin: 1, rmax: 1, price: 0, enemyOnly: true, fx: 'poison', desc: '' },
+  mukade_fang:   { name: 'ムカデファング', cat: 'melee', pow: 4,  hit: 90, rmin: 1, rmax: 1, price: 0, enemyOnly: true, fx: 'double', desc: '' },
+  junk_hammer:   { name: 'ガラクタハンマー', cat: 'melee', pow: 8, hit: 80, rmin: 1, rmax: 2, price: 0, enemyOnly: true, desc: '' },
+  emperor_lance: { name: 'エンペラーランス', cat: 'melee', pow: 10, hit: 90, rmin: 1, rmax: 2, price: 0, enemyOnly: true, fx: 'pierce', desc: '' },
 };
 const CAT_NAMES = { melee: '近接', ranged: '遠距離', support: '支援' };
 
@@ -102,6 +196,30 @@ const PARTS = {
   stealth:     { name: 'ステルス膜',       mod: { avo: 15 },         price: 700,  desc: '回避+15' },
   repair_nano: { name: 'リペアナノ',       mod: { regen: 4 },        price: 900,  desc: '毎ターンHP4回復' },
   long_barrel: { name: 'ロングバレル',     mod: { rmax: 1 },         price: 1000, desc: '射程+1（射程2以上の武器のみ）' },
+  balancer:    { name: 'バランサー',       mod: { atk: 2, def: 2 },  price: 1200, unlock: 5,  desc: '攻撃+2 / 防御+2' },
+  poison_guard:{ name: 'どくけしフィルター', mod: { nopoison: 1 },   price: 600,  unlock: 6,  desc: '毒にならない' },
+  para_guard:  { name: 'たいでんコート',   mod: { nopara: 1 },       price: 600,  unlock: 6,  desc: 'マヒにならない' },
+  exp_chip:    { name: 'がくしゅうチップ', mod: { expRate: 50 },     price: 1000, unlock: 4,  desc: 'もらえる経験値+50%' },
+  lucky_coin:  { name: 'ラッキーコイン',   mod: { gold: 15 },        price: 1200, unlock: 7,  desc: '勝利時のお金+15%（出撃中の合計）' },
+  card_amp:    { name: 'カードアンプ',     mod: { cardPow: 25 },     price: 1500, unlock: 8,  desc: '攻撃カードの威力+25%' },
+  heal_amp:    { name: 'ヒールアンプ',     mod: { heal: 6 },         price: 1200, unlock: 9,  desc: '回復量+6（回復武器のみ）' },
+  hard_plate:  { name: 'ハードプレート',   mod: { def: 4 },          price: 1300, unlock: 10, desc: '防御+4' },
+  hyper_motor: { name: 'ハイパワーモーター', mod: { atk: 4 },        price: 1400, unlock: 10, desc: '攻撃+4' },
+  scope_eye:   { name: 'スコープアイ',     mod: { hit: 25 },         price: 1200, unlock: 11, desc: '命中+25' },
+  mirage:      { name: 'ミラージュ膜',     mod: { avo: 25 },         price: 1500, unlock: 12, desc: '回避+25' },
+  guard_core:  { name: 'ガードコア',       mod: { def: 3, maxhp: 6 }, price: 1600, unlock: 12, desc: '防御+3 / HP+6' },
+  vital_gear:  { name: 'バイタルギア',     mod: { maxhp: 8, regen: 2 }, price: 1600, unlock: 13, desc: 'HP+8 / 毎ターンHP2回復' },
+  sky_scope:   { name: 'たいくう照準',     mod: { antiair: 1 },      price: 1400, unlock: 13, desc: '飛行ユニットへのダメージ1.5倍' },
+  aqua_fin:    { name: 'アクアフィン',     mod: { move: 'swim' },    price: 2000, unlock: 14, desc: '水の上を移動できる（飛行には効かない）' },
+  all_terrain: { name: 'オールテレーン',   mod: { move: 'hop' },     price: 2400, unlock: 15, desc: '水以外の地形を移動コスト1で進める' },
+  wing_boost:  { name: 'ウイングブースター', mod: { mov: 1, avo: 10 }, price: 2000, unlock: 16, desc: '移動+1 / 回避+10' },
+  mega_cell:   { name: 'メガセル',         mod: { maxhp: 20 },       price: 1800, unlock: 16, desc: 'HP+20' },
+  berserk:     { name: 'バーサクチップ',   mod: { atk: 8, def: -4 }, price: 2000, unlock: 18, desc: '攻撃+8 / 防御-4' },
+  repair_dx:   { name: 'リペアナノDX',     mod: { regen: 8 },        price: 2200, unlock: 19, desc: '毎ターンHP8回復' },
+  endure:      { name: 'ふんばり装置',     mod: { endure: 1 },       price: 2500, unlock: 20, desc: '1戦に1回、倒される攻撃をHP1でたえる' },
+  jet_leg:     { name: 'ジェットレッグ',   mod: { mov: 2, def: -2 }, price: 0, shop: false, desc: '移動+2 / 防御-2（宝箱）' },
+  super_barrel:{ name: 'スーパーバレル',   mod: { rmax: 2 },         price: 0, shop: false, desc: '射程+2（射程2以上の武器のみ・宝箱）' },
+  king_core:   { name: 'キングコア',       mod: { atk: 5, def: 5, maxhp: 10 }, price: 0, shop: false, desc: '攻撃+5 / 防御+5 / HP+10（宝箱）' },
 };
 
 // 味方の初期メンバーと加入タイミング（ストーリーのクリア数）
@@ -111,6 +229,17 @@ const RECRUITS = [
   { cls: 'chou',     name: 'ヒラリ',   join: 0 },
   { cls: 'hachi',    name: 'ビービ',   join: 2 },
   { cls: 'tentou',   name: 'テンコ',   join: 3 },
+  { cls: 'ari',      name: 'ギアリ',   join: 5 },
+  { cls: 'tonbo',    name: 'スイスイ', join: 7 },
+  { cls: 'kamakiri', name: 'カマジロウ', join: 10 },
+  { cls: 'batta',    name: 'ピョンタ', join: 12 },
+  { cls: 'kumo',     name: 'イトネ',   join: 14 },
+  { cls: 'gengorou', name: 'ゲンタ',   join: 16 },
+  { cls: 'hotaru',   name: 'ホノカ',   join: 18 },
+  { cls: 'dangomushi', name: 'ゴロン', join: 20 },
+  { cls: 'ga',       name: 'ヨルハ',   join: 22 },
+  { cls: 'semi',     name: 'ミンミ',   join: 24 },
+  { cls: 'kamikiri', name: 'キリマル', join: 26 },
 ];
 
 // ステージ（マップ 8×10）。G=草地 F=森 R=岩場 W=水

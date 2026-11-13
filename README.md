@@ -36,4 +36,7 @@ HTML / CSS / JavaScript のみ（ライブラリなし）。セーブはブラ�
 - カード：`CARDS` に1行足すだけで追加できます（`kind`/`rank`/`range`/`area`/`pow`/`heal`/`buff`/`status`/`warp` の意味は data.js のコメント参照）。
   ステージ初回クリアの報酬カードは `reward.cards`、宝箱は `get: { card: 'ID' }`。
 - 合成レシピ：`RECIPES` に `{ in: { 材料ID: 枚数 }, out: 'できるカードID' }` を足す（材料は合計2〜4枚）。宝箱で配るときは `get: { recipe: 'レシピID' }`。
+- ユニット：`CLASSES` に兵種、`RECRUITS` に仲間になるタイミング（`join` = ストーリーのクリア数）、`js/art.js` の `DRAW` に絵を足す。
+- 武器・パーツ：`unlock`（このクリア数で店に並ぶ）、`shop: false`（宝箱限定）。武器の `fx`（毒・マヒ・2回攻撃・防御半減・移動ダウン・吸収・対空）、
+  パーツの `mod`（能力値のほか `nopoison` `nopara` `endure` `expRate` `gold` `cardPow` `antiair` `move`）が使えます。
 - 敵の `ai`：`aggressive`（突撃）/ `hold`（待ち伏せ）/ `boss`（動かない）/ `thief`（宝箱どろぼう）。

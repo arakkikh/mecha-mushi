@@ -327,20 +327,21 @@ const BattleUI = (() => {
 
   function showForecast(a, d) {
     const f = E.forecast(b, a, d);
-    const aHpAfter = Math.max(0, a.hp - (f.counter && f.dmg < d.hp ? f.counter.dmg : 0));
-    const dHpAfter = Math.max(0, d.hp - f.dmg);
+    const hits = f.double ? 2 : 1;
+    const dHpAfter = Math.max(0, d.hp - f.dmg * hits);
+    const aHpAfter = Math.max(0, a.hp - (f.counter && dHpAfter > 0 ? f.counter.dmg * (f.counter.double ? 2 : 1) : 0));
     const side = (u, dmg, hit, hpAfter, isAtk) => `
       <div class="fc-side ${u.side}">
         <div class="fc-icon">${Art.icon(u.cls, u.side)}</div>
         <div class="fc-name">${u.name} <small>Lv${u.lv}</small></div>
         <div class="fc-hp">HP ${u.hp} → <b>${hpAfter}</b></div>
-        <div class="fc-row"><span>与ダメージ</span><b>${dmg === null ? '−' : dmg}</b></div>
+        <div class="fc-row"><span>与ダメージ</span><b>${dmg === null ? '−' : dmg}${dmg !== null && u.fx === 'double' ? '×2' : ''}</b></div>
         <div class="fc-row"><span>命中率</span><b>${hit === null ? '−' : hit + '%'}</b></div>
         ${isAtk ? '' : `<div class="fc-note">${dmg === null ? '反撃できない' : '反撃'}</div>`}
       </div>`;
     const html = `<div class="sheet-title">攻撃の予測</div>
       <div class="fc">${side(a, f.dmg, f.hit, aHpAfter, true)}<div class="fc-vs">VS</div>${side(d, f.counter ? f.counter.dmg : null, f.counter ? f.counter.hit : null, dHpAfter, false)}</div>
-      <div class="fc-aff">${affLabel(f.aff)}${f.dmg >= d.hp ? ' <span class="aff up">撃破チャンス！</span>' : ''}</div>
+      <div class="fc-aff">${affLabel(f.aff)}${f.dmg * hits >= d.hp ? ' <span class="aff up">撃破チャンス！</span>' : ''}${a.fx ? ` <span class="aff">${FX_NAMES[a.fx]}</span>` : ''}</div>
       <div class="btnrow"><button class="btn red big" data-act="go">⚔️ 攻撃する</button><button class="btn gray" data-act="back">やめる</button></div>`;
     showSheet(html, async act => {
       if (act === 'go') {
@@ -468,6 +469,8 @@ const BattleUI = (() => {
     if (ev.kind === 'buff') popText(t, `${BUFF_NAMES[ev.k]}${ev.v > 0 ? '+' : ''}${ev.v}`, ev.v > 0 ? 'lvup' : 'kill');
     else if (ev.kind === 'status') popText(t, STATUS_TEXT[ev.s], 'kill');
     else if (ev.kind === 'resist') popText(t, '効かない!', 'miss');
+    else if (ev.kind === 'endure') popText(t, 'ふんばった!', 'lvup');
+    else if (ev.kind === 'cleanse') popText(t, '状態回復', 'healnum');
     else if (ev.kind === 'poison') { popText(t, '毒 -' + ev.dmg, 'dmg'); updateHp(t); }
     else if (ev.kind === 'para') popText(t, 'マヒで動けない', 'miss');
     else if (ev.kind === 'buffend') { popText(t, BUFF_NAMES[ev.k] + ' 元に戻った', 'miss'); }
@@ -569,7 +572,7 @@ const BattleUI = (() => {
       <div class="info-main">
         <div class="info-name">${u.name} <small>Lv${u.lv}${u.side === 'player' ? ` EXP${u.exp}` : ''}</small> <span class="tybadge" style="background:${ty.color}">${ty.name}</span></div>
         <div class="info-hp"><div class="bar"><i style="width:${u.hp / u.maxhp * 100}%"></i></div>${u.hp}/${u.maxhp}</div>
-        <div class="info-stats">攻${u.atk} 防${u.def} 移${u.mov} 射${u.rmin === u.rmax ? u.rmin : u.rmin + '-' + u.rmax} ${MOVE_NAMES[u.move]}${u.heal ? ' 回復' + u.heal : ''}</div>
+        <div class="info-stats">攻${u.atk} 防${u.def} 移${u.mov} 射${u.rmin === u.rmax ? u.rmin : u.rmin + '-' + u.rmax} ${MOVE_NAMES[u.move]}${u.heal ? ' 回復' + u.heal : ''}${u.fx ? ` <span class="fxbadge">${FX_NAMES[u.fx]}</span>` : ''}</div>
         ${statusBadges(u)}
       </div></div>${t}`;
   }
@@ -624,6 +627,12 @@ const BattleUI = (() => {
     if (ev.length) await playEvents(ev);
     showInfo(null);
     mode = 'idle';
+    // 全員マヒなどで動けないときは自動でターン終了
+    if (E.alive(b, 'player').every(p => p.acted)) {
+      toast('動ける味方がいない…');
+      await wait(600);
+      endPlayerPhase();
+    }
   }
 
   async function checkEnd() {

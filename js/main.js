@@ -218,6 +218,9 @@ const App = (() => {
         cards = cfg.reward.cards || [];
         d.freeWins = (d.freeWins || 0) + 1;
       }
+      // ラッキーコイン：出撃中のユニットの装備ぶんお金が増える
+      const gold = b.units.filter(u => u.side === 'player').reduce((a, u) => a + (u.gold || 0), 0);
+      if (gold) money = Math.round(money * (1 + gold / 100));
       d.money += money;
       for (const id of items) Save.addItem(id);
       lines.push(`<div class="reward"><span>お金</span><b>💰 +${money}</b></div>`);
@@ -268,7 +271,11 @@ const App = (() => {
   function genEnemies(stage, diff) {
     const df = DIFFS[diff];
     const base = avgLv() + df.dl;
-    const pool = ['ari', 'ari', 'ga', 'kabuto', 'kuwagata', 'chou', 'hachi', 'tentou'];
+    // これまでに出会った敵の種類から選ぶ
+    const met = new Set(['ari', 'ga', 'kabuto', 'kuwagata', 'chou', 'hachi', 'tentou']);
+    for (const st of STAGES.slice(0, Math.max(1, D().cleared))) for (const e of st.enemies) met.add(e.cls);
+    met.delete('emperor');
+    const pool = ['ari'].concat([...met]);
     const spots = [];
     for (let y = 0; y < 3; y++) for (let x = 0; x < stage.rows[0].length; x++) spots.push([x, y]);
     const list = [];
@@ -291,7 +298,7 @@ const App = (() => {
     const enemies = genEnemies(stage, freeSel.diff);
     const lvSum = enemies.reduce((s, e) => s + e.lv, 0);
     const money = Math.round((60 + lvSum * 25) * df.mult / 10) * 10;
-    const shopItems = Object.keys(WEAPONS).filter(id => WEAPONS[id].price > 0).concat(Object.keys(PARTS));
+    const shopItems = Object.keys(WEAPONS).filter(id => inShop(WEAPONS[id])).concat(Object.keys(PARTS).filter(id => inShop(PARTS[id])));
     const items = Math.random() < df.drop ? [pick(shopItems)] : [];
     const pool = Object.keys(CARDS).filter(id => !CARDS[id].only && CARDS[id].rank <= Math.min(3, 1 + Math.floor(freeSel.diff / 1.5)));
     const cards = Math.random() < df.drop ? [pick(pool)] : [];
@@ -336,8 +343,10 @@ const App = (() => {
   }
 
   function weaponLine(w) {
-    return `${CAT_NAMES[w.cat]} 威力${w.pow} 命中${w.hit} 射程${w.rmin === w.rmax ? w.rmin : w.rmin + '-' + w.rmax}${w.heal ? ' 回復' + w.heal : ''}`;
+    return `${CAT_NAMES[w.cat]} 威力${w.pow} 命中${w.hit} 射程${w.rmin === w.rmax ? w.rmin : w.rmin + '-' + w.rmax}${w.heal ? ' 回復' + w.heal : ''}${w.fx ? ` <span class="fxbadge">${FX_NAMES[w.fx]}</span>` : ''}${w.cleanse ? ' <span class="fxbadge">状態回復</span>' : ''}`;
   }
+  // 店に並んでいるか
+  const inShop = it => it.price > 0 && it.shop !== false && !it.enemyOnly && (!it.unlock || D().cleared >= it.unlock);
 
   function unitDetail(u, back) {
     const c = CLASSES[u.cls];
@@ -347,7 +356,7 @@ const App = (() => {
     const html = `
       <div class="card row"><div class="bigicon">${Art.icon(u.cls, 'player')}</div>
         <div class="grow"><div class="uname big">${u.name}</div>
-        <div>${c.name} ${typeBadge(u.cls)} <span class="muted">${c.role}・${MOVE_NAMES[c.move]}</span></div>
+        <div>${c.name} ${typeBadge(u.cls)} <span class="muted">${c.role}・${MOVE_NAMES[s.move]}</span></div>
         <div>Lv${u.lv} <span class="muted">EXP ${u.exp}/100</span></div>
         <div class="expbar"><i style="width:${u.lv >= Engine.MAX_LV ? 100 : u.exp}%"></i></div></div></div>
       <div class="card stats">${stat('HP', s.maxhp)}${stat('攻撃', s.atk)}${stat('防御', s.def)}${stat('移動', s.mov)}${stat('射程', rangeText(s))}${stat('命中', s.hit)}${stat('回避', s.avo)}${s.heal ? stat('回復', s.heal) : ''}${s.regen ? stat('自動回復', s.regen) : ''}</div>
@@ -370,12 +379,15 @@ const App = (() => {
     const a = Engine.calcStats(u);
     const b = Engine.calcStats(Object.assign({}, u, change));
     const out = [];
-    const names = { maxhp: 'HP', atk: '攻', def: '防', mov: '移', hit: '命中', avo: '回避', heal: '回復', regen: '自動回復' };
+    const names = { maxhp: 'HP', atk: '攻', def: '防', mov: '移', hit: '命中', avo: '回避', heal: '回復', regen: '自動回復', expRate: '経験値%', gold: 'お金%', cardPow: 'カード威力%' };
     for (const k in names) {
       const dv = (b[k] || 0) - (a[k] || 0);
       if (dv) out.push(`<span class="${dv > 0 ? 'up' : 'down'}">${names[k]}${dv > 0 ? '+' : ''}${dv}</span>`);
     }
     if (a.rmin !== b.rmin || a.rmax !== b.rmax) out.push(`<span class="up">射程${rangeText(b)}</span>`);
+    if (a.move !== b.move) out.push(`<span class="up">移動タイプ:${MOVE_NAMES[b.move]}</span>`);
+    if (a.fx !== b.fx && b.fx) out.push(`<span class="up">${FX_NAMES[b.fx]}</span>`);
+    for (const [k, n] of [['nopoison', '毒無効'], ['nopara', 'マヒ無効'], ['endure', 'ふんばり'], ['antiair', '対空']]) if (!a[k] && b[k]) out.push(`<span class="up">${n}</span>`);
     return out.join(' ') || '<span class="muted">変化なし</span>';
   }
 
@@ -555,14 +567,16 @@ const App = (() => {
     let list = '';
     if (tab === 'weapon' || tab === 'part') {
       const src = tab === 'weapon' ? WEAPONS : PARTS;
-      list = Object.keys(src).filter(id => src[id].price > 0).map(id => {
+      const ids = Object.keys(src).filter(id => inShop(src[id]));
+      const soon = Object.keys(src).filter(id => src[id].price > 0 && src[id].shop !== false && !inShop(src[id])).length;
+      list = ids.map(id => {
         const it = src[id];
         const who = tab === 'weapon' ? Object.keys(CLASSES).filter(k => !CLASSES[k].enemyOnly && CLASSES[k].cats.includes(it.cat)).map(k => CLASSES[k].name.replace('型', '')).join('・') : '';
         return `<div class="item"><div class="grow"><b>${it.name}</b> <small class="muted">所持${Save.count(id)}</small>
           <div class="muted">${tab === 'weapon' ? weaponLine(it) : it.desc}</div>
           ${tab === 'weapon' ? `<div class="muted small">${it.desc}／装備：${who}</div>` : ''}</div>
           <button class="btn small gold" data-act="buy" data-arg="${id}" ${d.money < it.price ? 'disabled' : ''}>💰${it.price}</button></div>`;
-      }).join('');
+      }).join('') + (soon ? `<div class="muted center">ストーリーを進めると、あと${soon}種類が店に並びます</div>` : '');
     } else if (tab === 'card') {
       list = CARD_PACKS.map(pk => {
         const locked = pk.unlock && d.cleared < pk.unlock;

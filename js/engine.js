@@ -39,12 +39,15 @@ const Engine = (() => {
       avo: c.avo || 0,
       heal: w.heal || 0,
       regen: 0,
+      move: c.move, fx: w.fx || null, cleanse: !!w.cleanse,
     };
     for (const pid of spec.parts || []) {
       const p = PARTS[pid];
       if (!p) continue;
       for (const k in p.mod) {
         if (k === 'rmax' && s.rmax < 2) continue; // 射程延長は遠距離武器のみ
+        if (k === 'heal' && !s.heal) continue;    // 回復アップは回復武器のみ
+        if (k === 'move') { if (c.move !== 'fly') s.move = p.mod.move; continue; } // 移動タイプの変更
         s[k] = (s[k] || 0) + p.mod[k];
       }
     }
@@ -168,7 +171,7 @@ const Engine = (() => {
   // (x,y) から回復できる味方
   function healTargetsFrom(b, u, x, y) {
     if (!u.heal) return [];
-    return alive(b).filter(t => t.side === u.side && t !== u && t.hp < t.maxhp &&
+    return alive(b).filter(t => t.side === u.side && t !== u && (t.hp < t.maxhp || (u.cleanse && (t.st.para || t.st.poison))) &&
       dist(x, y, t.x, t.y) >= 1 && dist(x, y, t.x, t.y) <= Math.max(1, u.rmax));
   }
 
@@ -191,8 +194,9 @@ const Engine = (() => {
   function defBonus(b, d) {
     if (d.move === 'fly') return { def: 0, avo: 0 }; // 飛行は地形効果なし
     const t = terrain(b, d.x, d.y);
-    return { def: t.def, avo: t.avo };
+    return { def: t.def + (d.move === 'swim' && t.swimDef ? t.swimDef : 0), avo: t.avo };
   }
+  const isAntiAir = (a, d) => d.move === 'fly' && (a.fx === 'antiair' || a.antiair > 0);
 
   function calcHit(b, a, d) {
     const af = affinity(a.type, d.type);
@@ -201,8 +205,10 @@ const Engine = (() => {
   }
   function calcDmg(b, a, d) {
     const af = affinity(a.type, d.type);
-    const raw = a.atk - (d.def + defBonus(b, d).def);
-    const mult = af > 0 ? 1.3 : af < 0 ? 0.8 : 1;
+    let def = d.def + defBonus(b, d).def;
+    if (a.fx === 'pierce') def = Math.floor(def / 2);
+    const raw = a.atk - def;
+    const mult = (af > 0 ? 1.3 : af < 0 ? 0.8 : 1) * (isAntiAir(a, d) ? 1.5 : 1);
     return Math.max(1, Math.round(Math.max(0, raw) * mult));
   }
   const canCounter = (d, a) => inRange(d, d.x, d.y, a);
@@ -213,9 +219,9 @@ const Engine = (() => {
     if (ax !== undefined) { a.x = ax; a.y = ay; }
     const r = {
       hit: calcHit(b, a, d), dmg: calcDmg(b, a, d),
-      aff: affinity(a.type, d.type), counter: null,
+      aff: affinity(a.type, d.type), counter: null, double: a.fx === 'double',
     };
-    if (canCounter(d, a)) r.counter = { hit: calcHit(b, d, a), dmg: calcDmg(b, d, a) };
+    if (canCounter(d, a)) r.counter = { hit: calcHit(b, d, a), dmg: calcDmg(b, d, a), double: d.fx === 'double' };
     a.x = ox; a.y = oy;
     return r;
   }
@@ -223,7 +229,7 @@ const Engine = (() => {
   // 経験値とレベルアップ（味方のみ）
   function gainExp(u, amount, rng) {
     if (u.side !== 'player' || u.lv >= MAX_LV) return null;
-    u.exp += Math.max(1, Math.round(amount));
+    u.exp += Math.max(1, Math.round(amount * (1 + (u.expRate || 0) / 100)));
     if (u.exp < 100) return null;
     u.exp -= 100;
     u.lv++;
@@ -251,10 +257,17 @@ const Engine = (() => {
     rng = rng || Math.random;
     const ev = [];
     const strike = (x, y, counter) => {
+      if (x.hp <= 0 || y.hp <= 0) return;
       const hit = calcHit(b, x, y), dmg = calcDmg(b, x, y);
       const ok = rng() * 100 < hit;
-      if (ok) y.hp = Math.max(0, y.hp - dmg);
+      let endured = false;
+      if (ok) {
+        y.hp = Math.max(0, y.hp - dmg);
+        if (y.hp <= 0 && y.endure && !y.endured) { y.hp = 1; y.endured = endured = true; } // ふんばり装置
+      }
       ev.push({ kind: 'strike', att: x.uid, def: y.uid, hit: ok, dmg: ok ? dmg : 0, counter, killed: y.hp <= 0 });
+      if (endured) ev.push({ kind: 'endure', def: y.uid });
+      if (ok) weaponFx(x, y, dmg, ev, rng);
       // 経験値
       const diff = y.lv - x.lv;
       let exp = ok ? Math.max(1, 10 + diff * 3) : 1;
@@ -263,14 +276,40 @@ const Engine = (() => {
       if (lvup) ev.push({ kind: 'levelup', uid: x.uid, info: lvup });
     };
     strike(a, d, false);
-    if (d.hp > 0 && canCounter(d, a)) strike(d, a, true);
+    if (a.fx === 'double') strike(a, d, false);
+    if (d.hp > 0 && canCounter(d, a)) {
+      strike(d, a, true);
+      if (d.fx === 'double') strike(d, a, true);
+    }
     return ev;
+  }
+  // 武器の特殊効果（命中したとき）
+  function weaponFx(x, y, dmg, ev, rng) {
+    if (x.fx === 'poison' && y.hp > 0) {
+      if (y.nopoison) ev.push({ kind: 'resist', def: y.uid });
+      else { y.st.poison = { dmg: 3 + Math.floor(x.lv / 5), t: 2 }; ev.push({ kind: 'status', def: y.uid, s: 'poison' }); }
+    } else if (x.fx === 'para' && y.hp > 0) {
+      if (rng() < 0.3) {
+        if (y.boss || y.nopara) ev.push({ kind: 'resist', def: y.uid });
+        else { y.st.para = Math.max(y.st.para, 1); ev.push({ kind: 'status', def: y.uid, s: 'para' }); }
+      }
+    } else if (x.fx === 'web' && y.hp > 0 && y.move !== 'fly') {
+      if (!y.buffs.some(bf => bf.k === 'mov' && bf.v < 0)) {
+        const v = applyBuff(y, { k: 'mov', v: -2, t: 1 });
+        if (v) ev.push({ kind: 'buff', def: y.uid, k: 'mov', v });
+      }
+    } else if (x.fx === 'drain' && x.hp > 0) {
+      const before = x.hp;
+      x.hp = Math.min(x.maxhp, x.hp + Math.floor(dmg / 2));
+      if (x.hp > before) ev.push({ kind: 'heal', att: x.uid, def: x.uid, amount: x.hp - before });
+    }
   }
 
   function doHeal(b, h, t, rng) {
     const before = t.hp;
     t.hp = Math.min(t.maxhp, t.hp + h.heal);
     const ev = [{ kind: 'heal', att: h.uid, def: t.uid, amount: t.hp - before }];
+    if (h.cleanse && (t.st.para || t.st.poison)) { t.st.para = 0; t.st.poison = null; ev.push({ kind: 'cleanse', def: t.uid }); }
     const lvup = gainExp(h, 12, rng || Math.random);
     if (lvup) ev.push({ kind: 'levelup', uid: h.uid, info: lvup });
     return ev;
@@ -355,7 +394,7 @@ const Engine = (() => {
   }
   function cardDamage(b, u, t, c, mult) {
     const def = t.def + defBonus(b, t).def;
-    return Math.max(1, Math.round((c.pow + u.atk * 0.4) * (mult || 1) - def * 0.4));
+    return Math.max(1, Math.round((c.pow + u.atk * 0.4) * (mult || 1) * (1 + (u.cardPow || 0) / 100) - def * 0.4));
   }
   // カードを使う。mult はミニゲームの結果（0.6〜1.5）
   function useCard(b, u, deckIdx, x, y, mult, rng) {
@@ -391,10 +430,11 @@ const Engine = (() => {
           ev.push({ kind: 'buff', def: t.uid, k: c.buff.k, v });
         }
         if (c.status && c.status.para) {
-          if (t.boss) ev.push({ kind: 'resist', def: t.uid });
+          if (t.boss || t.nopara) ev.push({ kind: 'resist', def: t.uid });
           else { t.st.para = Math.max(t.st.para, c.status.para); ev.push({ kind: 'status', def: t.uid, s: 'para' }); }
         }
-        if (c.status && c.status.poison) {
+        if (c.status && c.status.poison && t.nopoison) ev.push({ kind: 'resist', def: t.uid });
+        else if (c.status && c.status.poison) {
           t.st.poison = { dmg: c.status.poison[0], t: c.status.poison[1] };
           ev.push({ kind: 'status', def: t.uid, s: 'poison' });
         }
@@ -447,7 +487,7 @@ const Engine = (() => {
       if (cb) consider(cb - v.cost * 0.05, v, null);
       for (const t of targetsFrom(b, u, v.x, v.y)) {
         const f = forecast(b, u, t, v.x, v.y);
-        let s = f.hit / 100 * f.dmg * 2;
+        let s = f.hit / 100 * f.dmg * 2 * (f.double ? 1.8 : 1);
         if (f.dmg >= t.hp) s += 40 * f.hit / 100;   // 倒せるなら優先
         if (f.counter) s -= f.counter.hit / 100 * f.counter.dmg * 0.8;
         if (t.heal) s += 4;                          // 回復役を狙う

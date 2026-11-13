@@ -416,3 +416,4 @@ button { font-family: inherit; touch-action: manipulation; }
 .mat.ok { color: #b9ffcf; } .mat.ng { color: #ff9a9a; }
 .mat small { color: var(--sub); }
 .pot .btnrow { margin-bottom: 8px; }
+.fxbadge { display: inline-block; font-size: 11px; font-weight: 800; padding: 0 5px; border-radius: 6px; background: #5a2470; color: #f1c8ff; vertical-align: 1px; }
